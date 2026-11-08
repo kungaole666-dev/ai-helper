@@ -41,19 +41,28 @@ def handle_quick_notes(user_id: str, text: str) -> str:
 
     return None
 
-def call_gemini(user_id: str, prompt: str) -> str:
-    """调用 Google Gemini 官方 API"""
+def call_gemini(user_id: str, prompt: str, model_name: str = None) -> str:
+    """调用 Google Gemini 官方 API (支持动态切换模型与 503 自动容灾降级)"""
     api_key = os.environ.get("GEMINI_API_KEY", "").strip() or cfg.get("GEMINI_API_KEY", "").strip()
-    model = cfg.get("GEMINI_MODEL", "gemini-3-flash-preview")
-    # 如果是云端运行 (有 PORT 环境变量且 PROXY 为本地 127.0.0.1)，不使用本地代理直接直连
-    if os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("ZEABUR"):
-        proxy = None
-    elif proxy and "127.0.0.1" in proxy and os.environ.get("PORT"):
-        # 云服务器上不需要 127.0.0.1 代理
+    
+    # 优先使用前端传入的模型，其次环境变量，最后默认使用官方最强免费模型 gemini-3.8-flash
+    primary_model = model_name or os.environ.get("GEMINI_MODEL", "").strip() or cfg.get("GEMINI_MODEL", "gemini-3.8-flash")
+    
+    # 候选备用模型 (全部采用 Google 官方 100% 免费模型，遇到波动自动平滑切换)
+    candidate_models = [primary_model]
+    for fallback in ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.1-pro-preview"]:
+        if fallback not in candidate_models:
+            candidate_models.append(fallback)
+
+    raw_proxy = cfg.get("PROXY", "").strip()
+    proxy = raw_proxy if raw_proxy else None
+
+    # 云服务器（Render 等平台）原生支持海外直连 Google，强制不使用本地代理
+    if os.environ.get("RENDER") or os.environ.get("PORT"):
         proxy = None
 
     if not api_key:
-        return "【系统提示】尚未配置 GEMINI_API_KEY，请在 config.json 中配置。"
+        return "【系统提示】尚未配置 GEMINI_API_KEY，请在 Render 的 Environment 中配置。"
 
     # 读取上下文历史
     history = db.get_chat_history(user_id, limit=4)
@@ -69,8 +78,6 @@ def call_gemini(user_id: str, prompt: str) -> str:
         "parts": [{"text": prompt}]
     })
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-
     payload = {
         "contents": contents,
         "systemInstruction": {
@@ -83,7 +90,8 @@ def call_gemini(user_id: str, prompt: str) -> str:
     }
 
     last_err = None
-    for attempt in range(2):
+    for current_model in candidate_models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={api_key}"
         try:
             with httpx.Client(proxy=proxy, timeout=35.0) as client:
                 resp = client.post(url, json=payload)
@@ -94,18 +102,20 @@ def call_gemini(user_id: str, prompt: str) -> str:
                     db.save_chat_message(user_id, "user", prompt)
                     db.save_chat_message(user_id, "assistant", answer)
                     return answer
-                elif resp.status_code == 429:
-                    return "Gemini 服务当前请求较多，请稍等 10 秒后再试。"
+                elif resp.status_code == 503 or resp.status_code == 429:
+                    print(f"[Model Fallback] 模型 {current_model} 高峰拥挤 ({resp.status_code})，自动尝试备用模型...")
+                    last_err = f"模型 {current_model} 暂时繁忙"
+                    time.sleep(0.5)
+                    continue
                 else:
                     return f"Gemini 接口响应异常 ({resp.status_code}): {resp.text[:200]}"
         except Exception as e:
             last_err = e
-            time.sleep(1)
+            time.sleep(0.5)
 
-    print(f"[Gemini Request Exception] {last_err}")
-    return f"调用 Gemini 时网络或服务异常: {last_err}"
+    return f"模型当前处于全球请求高峰期，请稍等 10 秒后再试 (错误: {last_err})"
 
-def run_agent(user_id: str, user_message: str) -> str:
+def run_agent(user_id: str, user_message: str, model_name: str = None) -> str:
     """主入口函数"""
     # 1. 优先检查是否是记事本快速指令
     note_resp = handle_quick_notes(user_id, user_message)
@@ -116,9 +126,8 @@ def run_agent(user_id: str, user_message: str) -> str:
     if user_message.startswith("搜索") or user_message.startswith("搜一下") or user_message.startswith("查一下"):
         query = user_message.lstrip("搜索：: 查一下搜一下")
         search_res = search.search_web(query)
-        # 将搜索结果喂给 Gemini 进行归纳
         prompt_with_search = f"用户想要了解「{query}」，以下是网页检索到的参考资料：\n{search_res}\n\n请结合以上资料给出全面清晰的总结。"
-        return call_gemini(user_id, prompt_with_search)
+        return call_gemini(user_id, prompt_with_search, model_name=model_name)
 
     # 3. 正常交给 Gemini 进行解题与深度问答
-    return call_gemini(user_id, user_message)
+    return call_gemini(user_id, user_message, model_name=model_name)
