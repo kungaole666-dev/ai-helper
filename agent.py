@@ -156,35 +156,52 @@ def stream_gemini(user_id: str, prompt: str, model_name: str = None, image_data:
                 with client.stream("POST", url, json=payload, timeout=60.0) as resp:
                     if resp.status_code == 200:
                         full_text = ""
-                        for line in resp.iter_lines():
-                            if not line or not line.startswith("data: "):
-                                continue
-                            data_str = line[6:].strip()
-                            if not data_str or data_str == "[DONE]":
-                                continue
-                            try:
-                                chunk_json = json.loads(data_str)
-                                candidates = chunk_json.get("candidates", [])
-                                if candidates and "content" in candidates[0]:
-                                    parts = candidates[0]["content"].get("parts", [])
-                                    for p in parts:
-                                        t = p.get("text", "")
-                                        if t:
-                                            full_text += t
-                                            yield json.dumps({"text": t}, ensure_ascii=False) + "\n"
-                            except Exception:
-                                continue
+                        in_thought = False
+                        try:
+                            for line in resp.iter_lines():
+                                if not line or not line.startswith("data: "):
+                                    continue
+                                data_str = line[6:].strip()
+                                if not data_str or data_str == "[DONE]":
+                                    continue
+                                try:
+                                    chunk_json = json.loads(data_str)
+                                    candidates = chunk_json.get("candidates", [])
+                                    if candidates and "content" in candidates[0]:
+                                        parts = candidates[0]["content"].get("parts", [])
+                                        for p in parts:
+                                            t = p.get("text", "")
+                                            is_thought = p.get("thought", False)
+                                            if t:
+                                                if is_thought:
+                                                    if not in_thought:
+                                                        in_thought = True
+                                                        full_text += "<think>\n"
+                                                        yield json.dumps({"text": "<think>\n"}, ensure_ascii=False) + "\n"
+                                                    full_text += t
+                                                    yield json.dumps({"text": t}, ensure_ascii=False) + "\n"
+                                                else:
+                                                    if in_thought:
+                                                        in_thought = False
+                                                        full_text += "\n</think>\n\n"
+                                                        yield json.dumps({"text": "\n</think>\n\n"}, ensure_ascii=False) + "\n"
+                                                    full_text += t
+                                                    yield json.dumps({"text": t}, ensure_ascii=False) + "\n"
+                                except Exception:
+                                    continue
+                        finally:
+                            if in_thought:
+                                full_text += "\n</think>\n\n"
+                            if full_text:
+                                saved_user_text = prompt.strip() or "分析与解答"
+                                if image_data:
+                                    saved_user_text = "[图片] " + (prompt.strip() if prompt else "图像分析")
+                                elif file_data:
+                                    saved_user_text = f"[文件: {file_data.get('name', '附件')}] " + (prompt.strip() if prompt else "文档分析")
 
-                        if full_text:
-                            saved_user_text = prompt.strip() or "分析与解答"
-                            if image_data:
-                                saved_user_text = "[图片] " + (prompt.strip() if prompt else "图像分析")
-                            elif file_data:
-                                saved_user_text = f"[文件: {file_data.get('name', '附件')}] " + (prompt.strip() if prompt else "文档分析")
-
-                            db.save_chat_message(user_id, "user", saved_user_text, session_id=session_id)
-                            db.save_chat_message(user_id, "assistant", full_text, session_id=session_id)
-                            return
+                                db.save_chat_message(user_id, "user", saved_user_text, session_id=session_id)
+                                db.save_chat_message(user_id, "assistant", full_text, session_id=session_id)
+                        return
                     elif resp.status_code in [429, 503]:
                         print(f"[Fallback] 模型 {current_model} 繁忙 ({resp.status_code})，自动切换备用...")
                         last_err = f"模型 {current_model} 暂时繁忙"

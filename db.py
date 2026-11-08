@@ -233,6 +233,47 @@ def delete_session(user_id: str, session_id: str) -> bool:
     conn.close()
     return True
 
+def rename_session(user_id: str, session_id: str, new_title: str) -> bool:
+    """重命名会话标题"""
+    if not new_title or not new_title.strip():
+        return False
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db_conn()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE sessions SET title = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+        (new_title.strip()[:50], now, user_id, session_id)
+    )
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
+def delete_last_assistant_message(user_id: str, session_id: str) -> Optional[str]:
+    """删除最近一条 assistant 消息供重新生成，并返回对应上一条 user 消息"""
+    conn = get_db_conn()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, role, content FROM chat_history WHERE user_id = ? AND session_id = ? ORDER BY id DESC LIMIT 2",
+        (user_id, session_id)
+    )
+    rows = cursor.fetchall()
+    if not rows:
+        conn.close()
+        return None
+
+    last_user_prompt = None
+    if rows[0][1] == "assistant":
+        cursor.execute("DELETE FROM chat_history WHERE id = ?", (rows[0][0],))
+        conn.commit()
+        if len(rows) > 1 and rows[1][1] == "user":
+            last_user_prompt = rows[1][2]
+    elif rows[0][1] == "user":
+        last_user_prompt = rows[0][2]
+
+    conn.close()
+    return last_user_prompt
+
 def add_note(user_id: str, content: str, category: str = "备忘") -> Dict[str, Any]:
     """为指定用户添加一条笔记/待办"""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

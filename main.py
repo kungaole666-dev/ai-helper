@@ -22,13 +22,32 @@ HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html
 if not os.path.exists(HTML_PATH):
     HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "index.html")
 
-# 1. 网页前端入口
+# 1. 网页前端入口与 PWA 桌面配置
 @app.get("/", response_class=HTMLResponse)
 def index_page():
     if os.path.exists(HTML_PATH):
         with open(HTML_PATH, "r", encoding="utf-8") as f:
             return f.read()
     return "<h1>前端页面 index.html 正在准备中...</h1>"
+
+@app.get("/manifest.json")
+def pwa_manifest():
+    return JSONResponse({
+        "name": "AI 智能助手",
+        "short_name": "AI",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#18181b",
+        "icons": [
+            {
+                "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='115' fill='%2318181b'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='-apple-system,sans-serif' font-weight='800' font-size='220' fill='%23ffffff'>AI</text></svg>",
+                "sizes": "512x512",
+                "type": "image/svg+xml",
+                "purpose": "any maskable"
+            }
+        ]
+    })
 
 # 2. 账户认证接口 (密码加盐哈希保护，杜绝他人查看数据)
 class AuthRequest(BaseModel):
@@ -137,6 +156,31 @@ def api_get_sessions(token: str = Query(...)):
         return {"sessions": []}
     sessions = db.get_user_sessions(user_id=user_id)
     return {"sessions": sessions}
+
+class RenameSessionRequest(BaseModel):
+    token: str
+    session_id: str
+    title: str
+
+@app.post("/api/sessions/rename")
+def api_rename_session(req: RenameSessionRequest):
+    user_id = db.verify_token(req.token)
+    if not user_id:
+        return {"success": False, "message": "未登录"}
+    success = db.rename_session(user_id=user_id, session_id=req.session_id, new_title=req.title)
+    return {"success": success}
+
+class DeleteLastRequest(BaseModel):
+    token: str
+    session_id: str
+
+@app.post("/api/chat/delete_last")
+def api_delete_last(req: DeleteLastRequest):
+    user_id = db.verify_token(req.token)
+    if not user_id:
+        return {"success": False, "message": "未登录"}
+    last_prompt = db.delete_last_assistant_message(user_id=user_id, session_id=req.session_id)
+    return {"success": True, "prompt": last_prompt}
 
 @app.post("/api/sessions/delete")
 def api_delete_session(token: str = Query(...), session_id: str = Query(...)):
