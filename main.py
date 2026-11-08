@@ -16,7 +16,9 @@ import db
 
 app = FastAPI(title="AI 智能解题与记事助理")
 
-HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "index.html")
+HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+if not os.path.exists(HTML_PATH):
+    HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "index.html")
 
 # 1. 网页前端入口 (微信/手机/电脑浏览器打开即用)
 @app.get("/", response_class=HTMLResponse)
