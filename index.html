@@ -425,6 +425,7 @@
                     AI
                 </div>
                 <h3 class="font-bold text-base text-zinc-900 dark:text-zinc-100 pt-1" id="auth-title">账户登录</h3>
+                <p class="text-xs text-zinc-400 dark:text-zinc-500" id="auth-subtitle">输入账号与密码进入，新用户将自动注册</p>
             </div>
 
             <!-- 登录 / 注册分段切换 -->
@@ -738,18 +739,23 @@
                 tabLogin.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-100 transition";
                 tabRegister.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition";
                 title.innerText = "账户登录";
-                submitBtn.innerText = "登录";
+                const sub = document.getElementById("auth-subtitle");
+                if (sub) sub.innerText = "输入您的账号与密码进入";
+                submitBtn.innerText = "登录 / 进入";
             } else {
                 tabRegister.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-100 transition";
                 tabLogin.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition";
                 title.innerText = "注册新账户";
-                submitBtn.innerText = "创建账户并进入";
+                const sub = document.getElementById("auth-subtitle");
+                if (sub) sub.innerText = "设置您的专属账户名与密码";
+                submitBtn.innerText = "立即注册并进入";
             }
         }
 
         async function submitAuthForm() {
             const usernameInput = document.getElementById("auth-username");
             const passwordInput = document.getElementById("auth-password");
+            const submitBtn = document.getElementById("auth-submit-btn");
             const errorMsg = document.getElementById("auth-error-msg");
             const username = usernameInput.value.trim();
             const password = passwordInput.value.trim();
@@ -766,6 +772,10 @@
                 passwordInput.focus();
                 return;
             }
+
+            const origBtnText = submitBtn.innerText;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i> 验证中...';
 
             const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
             try {
@@ -799,6 +809,9 @@
             } catch (e) {
                 errorMsg.innerText = "网络通信异常: " + e.message;
                 errorMsg.classList.remove("hidden");
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = origBtnText;
             }
         }
 

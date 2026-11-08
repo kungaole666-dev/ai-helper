@@ -94,73 +94,58 @@ def hash_password(password: str, salt: str = None) -> Tuple[str, str]:
     h = hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
     return h, salt
 
-def register_user(username: str, password: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
-    """注册新账户并赋予加密密码"""
+def auth_or_register_user(username: str, password: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
+    """智能认证：若账户不存在则自动安全注册；若已存在则严格验证密码登录 (彻底解决云端重启导致的注册/登录冲突)"""
     username = username.strip()
     password = password.strip()
     if not username or len(username) < 2:
-        return False, "用户名长度至少需 2 个字符", None, None
+        return False, "账户名称至少需 2 个字符", None, None
     if not password or len(password) < 4:
         return False, "密码长度至少需 4 个字符", None, None
 
     conn = get_db_conn()
     cursor = conn.cursor()
-    cursor.execute("SELECT username FROM users WHERE username = ?", (username,))
-    if cursor.fetchone():
-        conn.close()
-        return False, "该账户已存在，请直接输入密码登录", None, None
-
-    pwd_hash, salt = hash_password(password)
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute(
-        "INSERT INTO users (username, password_hash, salt, created_at) VALUES (?, ?, ?, ?)",
-        (username, pwd_hash, salt, now)
-    )
-    token = secrets.token_hex(24)
-    cursor.execute(
-        "INSERT INTO user_tokens (token, username, created_at) VALUES (?, ?, ?)",
-        (token, username, now)
-    )
-    conn.commit()
-    conn.close()
-    return True, "注册成功", token, pwd_hash
-
-def login_user(username: str, password: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
-    """验证账户与密码 (支持云端重启后自动平滑登录)"""
-    username = username.strip()
-    password = password.strip()
-    conn = get_db_conn()
-    cursor = conn.cursor()
-
-    # 检查数据库是否由于 Render 免费容器休眠/重启而被重置 (表内用户为空)
-    cursor.execute("SELECT COUNT(*) FROM users")
-    user_count = cursor.fetchone()[0]
-    if user_count == 0 and len(username) >= 2 and len(password) >= 4:
-        # 云端刚重启重置，直接平滑自动为该用户重建账户并登录
-        conn.close()
-        return register_user(username, password)
-
     cursor.execute("SELECT password_hash, salt FROM users WHERE username = ?", (username,))
     row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return False, "账户不存在，请切换至【注册】创建账户", None, None
-
-    pwd_hash, salt = row
-    test_hash, _ = hash_password(password, salt)
-    if test_hash != pwd_hash:
-        conn.close()
-        return False, "密码错误，请重新输入", None, None
-
-    token = secrets.token_hex(24)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute(
-        "INSERT INTO user_tokens (token, username, created_at) VALUES (?, ?, ?)",
-        (token, username, now)
-    )
-    conn.commit()
-    conn.close()
-    return True, "登录成功", token, pwd_hash
+
+    if not row:
+        # 账户尚不存在 (全新用户，或 Render 容器休眠重启清空了数据库) -> 自动安全创建并登录
+        pwd_hash, salt = hash_password(password)
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, salt, created_at) VALUES (?, ?, ?, ?)",
+            (username, pwd_hash, salt, now)
+        )
+        token = secrets.token_hex(24)
+        cursor.execute(
+            "INSERT INTO user_tokens (token, username, created_at) VALUES (?, ?, ?)",
+            (token, username, now)
+        )
+        conn.commit()
+        conn.close()
+        return True, "账户创建并登录成功", token, pwd_hash
+    else:
+        # 账户已存在 -> 严格比对密码哈希，确保只有本人可以进入
+        pwd_hash, salt = row
+        test_hash, _ = hash_password(password, salt)
+        if test_hash != pwd_hash:
+            conn.close()
+            return False, "该账户密码不正确，请重新输入", None, None
+
+        token = secrets.token_hex(24)
+        cursor.execute(
+            "INSERT INTO user_tokens (token, username, created_at) VALUES (?, ?, ?)",
+            (token, username, now)
+        )
+        conn.commit()
+        conn.close()
+        return True, "登录成功", token, pwd_hash
+
+def register_user(username: str, password: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
+    return auth_or_register_user(username, password)
+
+def login_user(username: str, password: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
+    return auth_or_register_user(username, password)
 
 def restore_user(username: str, user_key: str) -> Tuple[bool, str, Optional[str]]:
     """当 Render 免费容器重启导致 SQLite 被清空时，前端凭借安全凭证自动无感恢复账户"""
