@@ -94,21 +94,21 @@ def hash_password(password: str, salt: str = None) -> Tuple[str, str]:
     h = hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
     return h, salt
 
-def register_user(username: str, password: str) -> Tuple[bool, str, Optional[str]]:
+def register_user(username: str, password: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
     """注册新账户并赋予加密密码"""
     username = username.strip()
     password = password.strip()
     if not username or len(username) < 2:
-        return False, "用户名长度至少需 2 个字符", None
+        return False, "用户名长度至少需 2 个字符", None, None
     if not password or len(password) < 4:
-        return False, "密码长度至少需 4 个字符", None
+        return False, "密码长度至少需 4 个字符", None, None
 
     conn = get_db_conn()
     cursor = conn.cursor()
     cursor.execute("SELECT username FROM users WHERE username = ?", (username,))
     if cursor.fetchone():
         conn.close()
-        return False, "该账户已存在，请直接输入密码登录", None
+        return False, "该账户已存在，请直接输入密码登录", None, None
 
     pwd_hash, salt = hash_password(password)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -123,25 +123,34 @@ def register_user(username: str, password: str) -> Tuple[bool, str, Optional[str
     )
     conn.commit()
     conn.close()
-    return True, "注册成功", token
+    return True, "注册成功", token, pwd_hash
 
-def login_user(username: str, password: str) -> Tuple[bool, str, Optional[str]]:
-    """验证账户与密码"""
+def login_user(username: str, password: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
+    """验证账户与密码 (支持云端重启后自动平滑登录)"""
     username = username.strip()
     password = password.strip()
     conn = get_db_conn()
     cursor = conn.cursor()
+
+    # 检查数据库是否由于 Render 免费容器休眠/重启而被重置 (表内用户为空)
+    cursor.execute("SELECT COUNT(*) FROM users")
+    user_count = cursor.fetchone()[0]
+    if user_count == 0 and len(username) >= 2 and len(password) >= 4:
+        # 云端刚重启重置，直接平滑自动为该用户重建账户并登录
+        conn.close()
+        return register_user(username, password)
+
     cursor.execute("SELECT password_hash, salt FROM users WHERE username = ?", (username,))
     row = cursor.fetchone()
     if not row:
         conn.close()
-        return False, "账户不存在，请切换至【注册】创建账户", None
+        return False, "账户不存在，请切换至【注册】创建账户", None, None
 
     pwd_hash, salt = row
     test_hash, _ = hash_password(password, salt)
     if test_hash != pwd_hash:
         conn.close()
-        return False, "密码错误，请重新输入", None
+        return False, "密码错误，请重新输入", None, None
 
     token = secrets.token_hex(24)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -151,7 +160,57 @@ def login_user(username: str, password: str) -> Tuple[bool, str, Optional[str]]:
     )
     conn.commit()
     conn.close()
-    return True, "登录成功", token
+    return True, "登录成功", token, pwd_hash
+
+def restore_user(username: str, user_key: str) -> Tuple[bool, str, Optional[str]]:
+    """当 Render 免费容器重启导致 SQLite 被清空时，前端凭借安全凭证自动无感恢复账户"""
+    username = username.strip()
+    if not username or not user_key:
+        return False, "无效凭证", None
+    conn = get_db_conn()
+    cursor = conn.cursor()
+    cursor.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
+    row = cursor.fetchone()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if not row:
+        # 容器重启重置了数据库，无缝重建该用户
+        salt = secrets.token_hex(8)
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, salt, created_at) VALUES (?, ?, ?, ?)",
+            (username, user_key, salt, now)
+        )
+    else:
+        if row[0] != user_key:
+            conn.close()
+            return False, "凭证校验失败", None
+
+    token = secrets.token_hex(24)
+    cursor.execute(
+        "INSERT INTO user_tokens (token, username, created_at) VALUES (?, ?, ?)",
+        (token, username, now)
+    )
+    conn.commit()
+    conn.close()
+    return True, "账户恢复成功", token
+
+def sync_push_history(user_id: str, session_id: str, title: str, messages: List[Dict[str, str]]):
+    """当云端数据库被重置时，支持从前端缓存中无缝恢复历史会话和聊天记录"""
+    if not user_id or not messages:
+        return
+    ensure_session(user_id, session_id, title=title or "已恢复对话")
+    conn = get_db_conn()
+    cursor = conn.cursor()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if content:
+            cursor.execute(
+                "INSERT INTO chat_history (user_id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                (user_id, session_id, role, content, msg.get("created_at") or now)
+            )
+    conn.commit()
+    conn.close()
 
 def verify_token(token: str) -> Optional[str]:
     """通过安全 Token 获取真实绑定的用户名，防止伪造身份访问他人数据"""

@@ -1,11 +1,36 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>AI</title>
-    <!-- Tailwind CSS -->
+    <!-- PWA 原生手机桌面 App 支持 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="AI">
+    <meta name="application-name" content="AI">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#ffffff" id="meta-theme-color">
+    <!-- 原生 Apple 桌面高清 App 图标 -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='115' fill='%2318181b'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='-apple-system,sans-serif' font-weight='800' font-size='220' fill='%23ffffff'>AI</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='115' fill='%2318181b'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='-apple-system,sans-serif' font-weight='800' font-size='220' fill='%23ffffff'>AI</text></svg>">
+    <link rel="manifest" href="/manifest.json">
+    <!-- Tailwind CSS (启用 class 暗黑模式) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        zinc: {
+                            950: '#09090b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <!-- Marked Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- KaTeX 数学公式渲染 -->
@@ -50,9 +75,15 @@
             padding: 0.4rem 0.6rem;
             text-align: left;
         }
+        .dark .prose-msg th, .dark .prose-msg td {
+            border-color: #27272a;
+        }
         .prose-msg th {
             background-color: #f4f4f5;
             font-weight: 600;
+        }
+        .dark .prose-msg th {
+            background-color: #18181b;
         }
         .prose-msg pre {
             position: relative;
@@ -64,6 +95,11 @@
             margin: 0.6rem 0;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 0.82rem;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .dark .prose-msg pre {
+            background: #09090b;
+            border-color: #27272a;
         }
         .prose-msg code {
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -71,6 +107,9 @@
             background: rgba(0,0,0,0.06);
             padding: 0.15rem 0.35rem;
             border-radius: 0.25rem;
+        }
+        .dark .prose-msg code {
+            background: rgba(255,255,255,0.08);
         }
         .prose-msg pre code {
             background: transparent;
@@ -104,38 +143,61 @@
             background: #d4d4d8;
             border-radius: 3px;
         }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #3f3f46;
+        }
         ::-webkit-scrollbar-thumb:hover {
             background: #a1a1aa;
         }
+        /* 深度思考过程折叠样式 */
+        details.thinking-box summary::-webkit-details-marker {
+            display: none;
+        }
+        /* 打印样式适配 */
+        @media print {
+            header, footer, #scroll-bottom-btn, #sessions-drawer, #notes-drawer, #auth-modal, #pwa-modal, #drag-overlay, #model-bar-mobile {
+                display: none !important;
+            }
+            body, #chat-container {
+                overflow: visible !important;
+                height: auto !important;
+                background: white !important;
+                color: black !important;
+            }
+            .prose-msg {
+                box-shadow: none !important;
+                border: none !important;
+            }
+        }
     </style>
 </head>
-<body class="bg-[#fafafa] text-zinc-900 h-screen flex flex-col justify-between overflow-hidden relative select-none">
+<body class="bg-[#fafafa] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 h-screen flex flex-col justify-between overflow-hidden relative select-none transition-colors duration-150">
 
     <!-- 全局文件拖拽遮罩 -->
-    <div id="drag-overlay" class="fixed inset-0 bg-zinc-900/10 backdrop-blur-sm border-2 border-dashed border-zinc-400 z-50 hidden flex-col items-center justify-center pointer-events-none transition-opacity">
-        <div class="bg-white px-6 py-5 rounded-2xl shadow-xl flex flex-col items-center border border-zinc-200">
-            <i class="fa-solid fa-arrow-up-from-bracket text-zinc-700 text-2xl mb-2"></i>
-            <span class="text-sm font-medium text-zinc-800">释放以上传文件或图片</span>
+    <div id="drag-overlay" class="fixed inset-0 bg-zinc-900/10 dark:bg-zinc-950/40 backdrop-blur-sm border-2 border-dashed border-zinc-400 dark:border-zinc-600 z-50 hidden flex-col items-center justify-center pointer-events-none transition-opacity">
+        <div class="bg-white dark:bg-zinc-900 px-6 py-5 rounded-2xl shadow-xl flex flex-col items-center border border-zinc-200 dark:border-zinc-800">
+            <i class="fa-solid fa-arrow-up-from-bracket text-zinc-700 dark:text-zinc-200 text-2xl mb-2"></i>
+            <span class="text-sm font-medium text-zinc-800 dark:text-zinc-200">释放以上传文件或图片</span>
         </div>
     </div>
 
     <!-- 顶部导航栏 -->
-    <header class="bg-white/90 backdrop-blur-md border-b border-zinc-200/80 px-3 sm:px-4 py-2.5 flex items-center justify-between shrink-0 z-20">
+    <header class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-zinc-200/80 dark:border-zinc-800 px-3 sm:px-4 py-2.5 flex items-center justify-between shrink-0 z-20">
         <!-- 左侧: Logo、新建对话、模型选择器 -->
         <div class="flex items-center space-x-2 sm:space-x-3">
-            <div class="w-7 h-7 rounded-lg bg-zinc-900 text-white flex items-center justify-center font-semibold text-xs tracking-tight shadow-sm shrink-0">
+            <div class="w-7 h-7 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center font-semibold text-xs tracking-tight shadow-sm shrink-0">
                 AI
             </div>
 
             <!-- 新建对话按钮 -->
-            <button onclick="startNewSession()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-white transition flex items-center space-x-1 shadow-sm shrink-0" title="新建对话">
+            <button onclick="startNewSession()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 transition flex items-center space-x-1 shadow-sm shrink-0" title="新建对话">
                 <i class="fa-solid fa-plus text-[10px]"></i>
                 <span>新建对话</span>
             </button>
 
-            <!-- 模型下拉列表 -->
+            <!-- 模型下拉列表 (PC端) -->
             <div class="relative hidden sm:block">
-                <select id="model-select" onchange="onModelChange()" class="text-xs bg-zinc-50 border border-zinc-200 text-zinc-800 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-zinc-400 font-medium cursor-pointer appearance-none">
+                <select id="model-select" onchange="onModelChange()" class="text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-zinc-400 font-medium cursor-pointer appearance-none">
                     <option value="gemini-3.5-flash-lite" selected>Gemini 3.5 Flash Lite (极速)</option>
                     <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
                     <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
@@ -145,27 +207,54 @@
             </div>
         </div>
 
-        <!-- 右侧: 历史对话列表抽屉、用户状态菜单、备忘录、清空当前 -->
-        <div class="flex items-center space-x-1.5 sm:space-x-2">
+        <!-- 右侧功能区: 深色模式、导出、历史会话、用户菜单、备忘录、清空 -->
+        <div class="flex items-center space-x-1 sm:space-x-1.5">
+            <!-- 深色/浅色模式切换按钮 -->
+            <button onclick="toggleTheme()" id="theme-toggle-btn" class="w-8 h-8 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition flex items-center justify-center shrink-0" title="切换深色/浅色模式">
+                <i class="fa-regular fa-moon dark:hidden"></i>
+                <i class="fa-regular fa-sun hidden dark:inline"></i>
+            </button>
+
+            <!-- 导出对话菜单 -->
+            <div class="relative">
+                <button onclick="toggleExportDropdown()" id="export-btn" class="w-8 h-8 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition flex items-center justify-center shrink-0" title="导出对话">
+                    <i class="fa-regular fa-share-from-square"></i>
+                </button>
+                <div id="export-dropdown" class="absolute right-0 mt-1.5 w-36 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 py-1 hidden z-50 text-xs">
+                    <button onclick="exportChatToMarkdown(); toggleExportDropdown();" class="w-full text-left px-3 py-2 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center space-x-2 transition">
+                        <i class="fa-brands fa-markdown text-zinc-500"></i>
+                        <span>导出 Markdown</span>
+                    </button>
+                    <button onclick="printChat(); toggleExportDropdown();" class="w-full text-left px-3 py-2 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center space-x-2 transition border-t border-zinc-100 dark:border-zinc-800">
+                        <i class="fa-solid fa-file-pdf text-zinc-500"></i>
+                        <span>打印 / 存为 PDF</span>
+                    </button>
+                </div>
+            </div>
+
             <!-- 历史对话列表按钮 -->
-            <button onclick="toggleSessionsDrawer()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 border border-zinc-200 text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 transition flex items-center space-x-1" title="查看所有历史对话">
-                <i class="fa-regular fa-clock-rotate-left text-zinc-500"></i>
+            <button onclick="toggleSessionsDrawer()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition flex items-center space-x-1" title="查看所有历史对话">
+                <i class="fa-regular fa-clock-rotate-left text-zinc-500 dark:text-zinc-400"></i>
                 <span class="hidden sm:inline">历史</span>
                 <span id="session-count-badge" class="text-[10px] text-zinc-400"></span>
             </button>
 
             <!-- 用户信息与退出登录菜单 -->
             <div class="relative">
-                <button onclick="toggleUserDropdown()" id="account-btn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 border border-zinc-200 text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 transition flex items-center space-x-1.5" title="账户">
-                    <i class="fa-regular fa-circle-user text-zinc-600"></i>
+                <button onclick="toggleUserDropdown()" id="account-btn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition flex items-center space-x-1.5" title="账户">
+                    <i class="fa-regular fa-circle-user text-zinc-600 dark:text-zinc-300"></i>
                     <span id="account-name-display" class="max-w-[70px] sm:max-w-[90px] truncate">未登录</span>
                     <i class="fa-solid fa-chevron-down text-[9px] text-zinc-400"></i>
                 </button>
 
                 <!-- 用户下拉菜单 -->
-                <div id="user-dropdown" class="absolute right-0 mt-1.5 w-36 bg-white rounded-xl shadow-xl border border-zinc-200 py-1 hidden z-50 text-xs">
-                    <div class="px-3 py-1.5 border-b border-zinc-100 font-medium text-zinc-500 truncate" id="dropdown-username-tip">账户</div>
-                    <button onclick="handleLogout()" class="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 flex items-center space-x-1.5 transition">
+                <div id="user-dropdown" class="absolute right-0 mt-1.5 w-36 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 py-1 hidden z-50 text-xs">
+                    <div class="px-3 py-1.5 border-b border-zinc-100 dark:border-zinc-800 font-medium text-zinc-500 dark:text-zinc-400 truncate" id="dropdown-username-tip">账户</div>
+                    <button onclick="togglePwaModal(); toggleUserDropdown();" class="w-full text-left px-3 py-2 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center space-x-1.5 transition">
+                        <i class="fa-solid fa-mobile-screen text-xs text-zinc-500"></i>
+                        <span>存到手机桌面</span>
+                    </button>
+                    <button onclick="handleLogout()" class="w-full text-left px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center space-x-1.5 transition border-t border-zinc-100 dark:border-zinc-800">
                         <i class="fa-solid fa-arrow-right-from-bracket text-xs"></i>
                         <span>退出登录</span>
                     </button>
@@ -173,22 +262,22 @@
             </div>
 
             <!-- 备忘录按钮 -->
-            <button onclick="toggleNotesDrawer()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 border border-zinc-200 text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 transition flex items-center space-x-1" title="备忘事项">
-                <i class="fa-regular fa-bookmark text-zinc-500"></i>
+            <button onclick="toggleNotesDrawer()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition flex items-center space-x-1" title="备忘事项">
+                <i class="fa-regular fa-bookmark text-zinc-500 dark:text-zinc-400"></i>
                 <span class="hidden sm:inline">备忘</span>
             </button>
 
             <!-- 清空当前对话 -->
-            <button onclick="confirmClearCurrentHistory()" class="w-8 h-8 rounded-lg text-xs font-medium text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 transition flex items-center justify-center shrink-0" title="清空当前对话">
+            <button onclick="confirmClearCurrentHistory()" class="w-8 h-8 rounded-lg text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 transition flex items-center justify-center shrink-0" title="清空当前对话">
                 <i class="fa-regular fa-trash-can"></i>
             </button>
         </div>
     </header>
 
     <!-- 手机端模型选择栏 (小屏自适应) -->
-    <div class="sm:hidden px-3 py-1.5 bg-zinc-100/60 border-b border-zinc-200/60 flex items-center justify-between">
-        <span class="text-[11px] text-zinc-500">当前模型:</span>
-        <select id="model-select-mobile" onchange="onMobileModelChange()" class="text-xs bg-white border border-zinc-200 text-zinc-800 rounded px-2 py-0.5 font-medium">
+    <div id="model-bar-mobile" class="sm:hidden px-3 py-1.5 bg-zinc-100/70 dark:bg-zinc-900 border-b border-zinc-200/60 dark:border-zinc-800 flex items-center justify-between">
+        <span class="text-[11px] text-zinc-500 dark:text-zinc-400">当前模型:</span>
+        <select id="model-select-mobile" onchange="onMobileModelChange()" class="text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded px-2 py-0.5 font-medium">
             <option value="gemini-3.5-flash-lite" selected>Gemini 3.5 Flash Lite (极速)</option>
             <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
             <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
@@ -197,78 +286,127 @@
     </div>
 
     <!-- 消息对话展示主容器 -->
-    <main id="chat-container" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 select-text">
-        <!-- 空状态提示 -->
-        <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center text-zinc-400 space-y-2 py-20">
-            <div class="w-10 h-10 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 text-sm">
-                <i class="fa-solid fa-sparkles"></i>
+    <main id="chat-container" onscroll="onChatScroll()" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 select-text relative">
+        <!-- 空状态与 4 个专业提问场景卡片 -->
+        <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center max-w-xl mx-auto py-10 px-3 space-y-6">
+            <div class="space-y-2">
+                <div class="w-12 h-12 rounded-2xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center font-bold text-base mx-auto shadow-sm">
+                    AI
+                </div>
+                <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200">今天有什么可以帮您？</h2>
+                <p class="text-xs text-zinc-400 dark:text-zinc-500">支持数学公式推导、学术论文速读、代码分析与多模态文件解析</p>
             </div>
-            <div class="text-xs text-zinc-400 font-normal">输入消息或拖入文件开始对话</div>
+
+            <!-- 2x2 快捷卡片 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
+                <button onclick="useStarterPrompt('推导并求解高数常微分方程，并给出详细分步解题推导过程。')" class="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition text-xs shadow-sm hover:shadow flex flex-col space-y-1 group">
+                    <div class="flex items-center space-x-2 font-medium text-zinc-800 dark:text-zinc-200">
+                        <i class="fa-solid fa-square-root-variable text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white transition"></i>
+                        <span>学科难题推导</span>
+                    </div>
+                    <div class="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">微积分推导、分步计算与公式演算</div>
+                </button>
+
+                <button onclick="useStarterPrompt('审查以下代码的时间复杂度与空间复杂度，并给出重构优化方案：\n\n```python\n\n```')" class="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition text-xs shadow-sm hover:shadow flex flex-col space-y-1 group">
+                    <div class="flex items-center space-x-2 font-medium text-zinc-800 dark:text-zinc-200">
+                        <i class="fa-solid fa-code text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white transition"></i>
+                        <span>代码重构与分析</span>
+                    </div>
+                    <div class="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">算法复杂度、代码审查、Bug 定位</div>
+                </button>
+
+                <button onclick="useStarterPrompt('请结合上传的文档或论文，提炼核心论点、创新方法与关键实验结论。')" class="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition text-xs shadow-sm hover:shadow flex flex-col space-y-1 group">
+                    <div class="flex items-center space-x-2 font-medium text-zinc-800 dark:text-zinc-200">
+                        <i class="fa-regular fa-file-lines text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white transition"></i>
+                        <span>文档与论文速读</span>
+                    </div>
+                    <div class="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">核心结论提炼、要点摘要、跨语言翻译</div>
+                </button>
+
+                <button onclick="useStarterPrompt('用严密的第一性原理拆解一个复杂逻辑问题，给出清晰的推理逻辑链。')" class="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition text-xs shadow-sm hover:shadow flex flex-col space-y-1 group">
+                    <div class="flex items-center space-x-2 font-medium text-zinc-800 dark:text-zinc-200">
+                        <i class="fa-solid fa-brain text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white transition"></i>
+                        <span>逻辑深度推演</span>
+                    </div>
+                    <div class="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">第一性原理、多步骤推理、决策框架</div>
+                </button>
+            </div>
         </div>
     </main>
 
+    <!-- 回到最新内容浮动按钮 (用户向上滚动时优雅浮现) -->
+    <button id="scroll-bottom-btn" onclick="scrollToBottomSmooth()" class="fixed bottom-24 right-5 sm:right-8 w-9 h-9 rounded-full bg-white dark:bg-zinc-800 shadow-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 flex items-center justify-center transition opacity-0 pointer-events-none hover:bg-zinc-50 dark:hover:bg-zinc-700 z-30" title="回到最新">
+        <i class="fa-solid fa-arrow-down text-xs"></i>
+    </button>
+
     <!-- 底部输入区域 -->
-    <footer class="bg-white/95 backdrop-blur-md border-t border-zinc-200/80 p-3 sm:p-4 shrink-0 z-20">
+    <footer class="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200/80 dark:border-zinc-800 p-3 sm:p-4 shrink-0 z-20">
         <div class="max-w-4xl mx-auto">
             <!-- 附件预览条 (图片/文件已选状态) -->
-            <div id="attachment-preview-bar" class="hidden items-center mb-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-xl w-fit max-w-full">
+            <div id="attachment-preview-bar" class="hidden items-center mb-2 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl w-fit max-w-full">
                 <!-- 图片缩略图 -->
                 <div id="img-preview-box" class="hidden mr-2 shrink-0">
-                    <img id="img-preview" src="" class="w-9 h-9 object-cover rounded-md border border-zinc-200" alt="预览">
+                    <img id="img-preview" src="" class="w-9 h-9 object-cover rounded-md border border-zinc-200 dark:border-zinc-700" alt="预览">
                 </div>
                 <!-- 文件图标与信息 -->
                 <div id="file-preview-box" class="hidden mr-2 shrink-0 flex items-center space-x-1.5">
-                    <i class="fa-solid fa-paperclip text-zinc-500 text-xs"></i>
-                    <span id="file-name" class="text-xs font-medium text-zinc-700 max-w-[180px] sm:max-w-xs truncate"></span>
+                    <i class="fa-solid fa-paperclip text-zinc-500 dark:text-zinc-400 text-xs"></i>
+                    <span id="file-name" class="text-xs font-medium text-zinc-700 dark:text-zinc-200 max-w-[180px] sm:max-w-xs truncate"></span>
                     <span id="file-size" class="text-[10px] text-zinc-400"></span>
                 </div>
                 <!-- 移除按钮 -->
-                <button onclick="clearAttachment()" class="text-zinc-400 hover:text-zinc-700 ml-1.5 text-xs p-1" title="移除附件">
+                <button onclick="clearAttachment()" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 ml-1.5 text-xs p-1" title="移除附件">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
 
             <!-- 主输入框与功能按钮组 -->
-            <div class="flex items-end bg-zinc-50 border border-zinc-200 rounded-2xl p-1.5 focus-within:border-zinc-400 focus-within:bg-white transition shadow-sm">
-                <!-- 隐形原生文件选择器 -->
+            <div class="flex items-end bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-1.5 focus-within:border-zinc-400 dark:focus-within:border-zinc-500 focus-within:bg-white dark:focus-within:bg-zinc-800 transition shadow-sm">
+                <!-- 原生文件与相机选择器 -->
                 <input type="file" id="image-file-input" accept="image/*" class="hidden" onchange="onImageSelected(event)">
+                <input type="file" id="camera-file-input" accept="image/*" capture="environment" class="hidden" onchange="onImageSelected(event)">
                 <input type="file" id="doc-file-input" accept=".pdf,.txt,.md,.py,.js,.html,.css,.json,.csv,.c,.cpp,.docx" class="hidden" onchange="onDocFileSelected(event)">
 
-                <!-- 上传图片按钮 -->
-                <button type="button" onclick="document.getElementById('image-file-input').click()" class="w-8 h-8 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200/60 flex items-center justify-center shrink-0 mb-0.5 transition" title="上传图片">
+                <!-- 拍照做题按钮 (手机直接调用后置镜头) -->
+                <button type="button" onclick="document.getElementById('camera-file-input').click()" class="w-8 h-8 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200/60 dark:hover:bg-zinc-700 flex items-center justify-center shrink-0 mb-0.5 transition" title="拍照解题">
+                    <i class="fa-solid fa-camera text-sm"></i>
+                </button>
+
+                <!-- 上传相册图片按钮 -->
+                <button type="button" onclick="document.getElementById('image-file-input').click()" class="w-8 h-8 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200/60 dark:hover:bg-zinc-700 flex items-center justify-center shrink-0 mb-0.5 transition" title="上传相册图片">
                     <i class="fa-regular fa-image text-sm"></i>
                 </button>
 
                 <!-- 上传文档按钮 -->
-                <button type="button" onclick="document.getElementById('doc-file-input').click()" class="w-8 h-8 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200/60 flex items-center justify-center shrink-0 mb-0.5 mr-1 transition" title="上传文档">
+                <button type="button" onclick="document.getElementById('doc-file-input').click()" class="w-8 h-8 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200/60 dark:hover:bg-zinc-700 flex items-center justify-center shrink-0 mb-0.5 mr-1 transition" title="上传文档">
                     <i class="fa-regular fa-file-lines text-sm"></i>
                 </button>
 
                 <!-- 多行输入框 -->
-                <textarea id="user-input" rows="1" placeholder="输入消息..." class="flex-1 bg-transparent border-0 text-sm text-zinc-900 placeholder-zinc-400 px-2 py-1.5 resize-none focus:outline-none max-h-36 overflow-y-auto leading-relaxed" oninput="autoResize(this)" onkeydown="handleKeyDown(event)"></textarea>
+                <textarea id="user-input" rows="1" placeholder="输入消息..." class="flex-1 bg-transparent border-0 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 px-2 py-1.5 resize-none focus:outline-none max-h-36 overflow-y-auto leading-relaxed" oninput="autoResize(this)" onkeydown="handleKeyDown(event)"></textarea>
 
-                <!-- 发送按钮 -->
-                <button type="button" id="send-btn" onclick="sendMessage()" class="w-8 h-8 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center shrink-0 mb-0.5 ml-1 transition" title="发送">
-                    <i class="fa-solid fa-arrow-up text-xs"></i>
+                <!-- 发送 / 停止生成按钮 (生成时变成黑色停止方块 ■) -->
+                <button type="button" id="send-btn" onclick="onSendOrStopClick()" class="w-8 h-8 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 flex items-center justify-center shrink-0 mb-0.5 ml-1 transition shadow-sm" title="发送">
+                    <i id="send-btn-icon" class="fa-solid fa-arrow-up text-xs"></i>
                 </button>
             </div>
         </div>
     </footer>
 
-    <!-- 历史会话抽屉 (仅本人可见) -->
-    <div id="sessions-drawer" class="fixed inset-y-0 left-0 w-full max-w-xs bg-white shadow-2xl border-r border-zinc-200 z-50 transform -translate-x-full transition-transform duration-200 flex flex-col">
-        <div class="p-4 border-b border-zinc-200 flex items-center justify-between">
+    <!-- 历史会话抽屉 (仅本人可见，支持重命名和删除) -->
+    <div id="sessions-drawer" class="fixed inset-y-0 left-0 w-full max-w-xs bg-white dark:bg-zinc-900 shadow-2xl border-r border-zinc-200 dark:border-zinc-800 z-50 transform -translate-x-full transition-transform duration-200 flex flex-col">
+        <div class="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <div class="flex items-center space-x-2">
-                <i class="fa-regular fa-clock-rotate-left text-zinc-700 text-sm"></i>
-                <h3 class="font-semibold text-sm text-zinc-900">历史对话</h3>
+                <i class="fa-regular fa-clock-rotate-left text-zinc-700 dark:text-zinc-200 text-sm"></i>
+                <h3 class="font-semibold text-sm text-zinc-900 dark:text-zinc-100">历史对话</h3>
             </div>
-            <button onclick="toggleSessionsDrawer()" class="text-zinc-400 hover:text-zinc-700 text-sm p-1">
+            <button onclick="toggleSessionsDrawer()" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-sm p-1">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
-        <div class="p-3 border-b border-zinc-100">
-            <button onclick="startNewSession(); toggleSessionsDrawer();" class="w-full py-2 px-3 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-medium flex items-center justify-center space-x-1.5 transition">
+        <div class="p-3 border-b border-zinc-100 dark:border-zinc-800">
+            <button onclick="startNewSession(); toggleSessionsDrawer();" class="w-full py-2 px-3 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 rounded-xl text-xs font-medium flex items-center justify-center space-x-1.5 transition">
                 <i class="fa-solid fa-plus text-[10px]"></i>
                 <span>新建对话</span>
             </button>
@@ -281,59 +419,116 @@
 
     <!-- 账户登录 / 注册模态弹窗 (强制密码保护) -->
     <div id="auth-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl border border-zinc-200 w-full max-w-sm p-6 space-y-5">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm p-6 space-y-5">
             <div class="text-center space-y-1">
-                <div class="w-10 h-10 rounded-xl bg-zinc-900 text-white flex items-center justify-center font-bold text-sm mx-auto shadow-sm">
+                <div class="w-10 h-10 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center font-bold text-sm mx-auto shadow-sm">
                     AI
                 </div>
-                <h3 class="font-bold text-base text-zinc-900 pt-1" id="auth-title">账户登录</h3>
+                <h3 class="font-bold text-base text-zinc-900 dark:text-zinc-100 pt-1" id="auth-title">账户登录</h3>
             </div>
 
             <!-- 登录 / 注册分段切换 -->
-            <div class="flex bg-zinc-100 p-1 rounded-xl">
-                <button type="button" onclick="switchAuthTab('login')" id="tab-login" class="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-white shadow-sm text-zinc-900 transition">登录</button>
-                <button type="button" onclick="switchAuthTab('register')" id="tab-register" class="flex-1 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-900 transition">注册新账户</button>
+            <div class="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl">
+                <button type="button" onclick="switchAuthTab('login')" id="tab-login" class="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-100 transition">登录</button>
+                <button type="button" onclick="switchAuthTab('register')" id="tab-register" class="flex-1 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition">注册新账户</button>
             </div>
 
             <!-- 表单输入区域 -->
             <div class="space-y-3">
                 <div>
-                    <label class="block text-xs font-medium text-zinc-600 mb-1">账户名称</label>
-                    <input type="text" id="auth-username" placeholder="输入账户名称" class="w-full px-3 py-2 text-sm bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:border-zinc-400 focus:bg-white transition" onkeydown="if(event.key==='Enter') submitAuthForm()">
+                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">账户名称</label>
+                    <input type="text" id="auth-username" placeholder="输入账户名称" class="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-xl focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-500 focus:bg-white dark:focus:bg-zinc-700 transition" onkeydown="if(event.key==='Enter') submitAuthForm()">
                 </div>
 
                 <div>
-                    <label class="block text-xs font-medium text-zinc-600 mb-1">账户密码</label>
-                    <input type="password" id="auth-password" placeholder="输入账户密码" class="w-full px-3 py-2 text-sm bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:border-zinc-400 focus:bg-white transition" onkeydown="if(event.key==='Enter') submitAuthForm()">
+                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">账户密码</label>
+                    <input type="password" id="auth-password" placeholder="输入账户密码" class="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-xl focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-500 focus:bg-white dark:focus:bg-zinc-700 transition" onkeydown="if(event.key==='Enter') submitAuthForm()">
                 </div>
 
                 <div id="auth-error-msg" class="text-xs text-red-500 hidden pt-1"></div>
             </div>
 
             <div class="pt-1">
-                <button type="button" onclick="submitAuthForm()" id="auth-submit-btn" class="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-xl transition shadow-sm">
+                <button type="button" onclick="submitAuthForm()" id="auth-submit-btn" class="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-semibold rounded-xl transition shadow-sm">
                     登录
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- 备忘录抽屉 -->
-    <div id="notes-drawer" class="fixed inset-y-0 right-0 w-full max-w-sm bg-white shadow-2xl border-l border-zinc-200 z-50 transform translate-x-full transition-transform duration-200 flex flex-col">
-        <div class="p-4 border-b border-zinc-200 flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-                <i class="fa-regular fa-bookmark text-zinc-700 text-sm"></i>
-                <h3 class="font-semibold text-sm text-zinc-900">备忘事项</h3>
+    <!-- 添加到手机桌面引导弹窗 -->
+    <div id="pwa-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm p-5 space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                <div class="flex items-center space-x-2">
+                    <div class="w-6 h-6 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center text-xs">
+                        <i class="fa-solid fa-mobile-screen"></i>
+                    </div>
+                    <h3 class="font-semibold text-sm text-zinc-900 dark:text-zinc-100">存到手机桌面</h3>
+                </div>
+                <button onclick="togglePwaModal()" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xs p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
-            <button onclick="toggleNotesDrawer()" class="text-zinc-400 hover:text-zinc-700 text-sm p-1">
+
+            <div class="space-y-3 text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                <!-- 微信内特别提示 -->
+                <div class="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-900/40 rounded-xl text-amber-800 dark:text-amber-300 text-[11px] flex items-start space-x-2">
+                    <i class="fa-solid fa-circle-exclamation text-amber-600 mt-0.5 shrink-0"></i>
+                    <span>微信内打开请先点右上角 <strong>···</strong>，选择 <strong>「在默认浏览器中打开」</strong>。</span>
+                </div>
+
+                <!-- 苹果 iPhone -->
+                <div class="p-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200/80 dark:border-zinc-700 rounded-xl space-y-1.5">
+                    <div class="font-semibold text-zinc-800 dark:text-zinc-200 flex items-center space-x-1.5">
+                        <i class="fa-brands fa-apple text-zinc-900 dark:text-zinc-100 text-sm"></i>
+                        <span>苹果 iPhone / iPad (Safari)</span>
+                    </div>
+                    <ol class="list-decimal list-inside space-y-1 text-zinc-600 dark:text-zinc-400 pl-1">
+                        <li>点击浏览器底部中间的 <strong>分享图标</strong>（带箭头的方框）</li>
+                        <li>向上滑动，找到并点击 <strong>「添加到主屏幕」</strong></li>
+                        <li>点击右上角 <strong>「添加」</strong> 即可像原生 App 一样直接在桌面全屏使用！</li>
+                    </ol>
+                </div>
+
+                <!-- 安卓 Android -->
+                <div class="p-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200/80 dark:border-zinc-700 rounded-xl space-y-1.5">
+                    <div class="font-semibold text-zinc-800 dark:text-zinc-200 flex items-center space-x-1.5">
+                        <i class="fa-brands fa-android text-emerald-600 text-sm"></i>
+                        <span>安卓手机 (Chrome / 华为 / 小米 / 浏览器)</span>
+                    </div>
+                    <ol class="list-decimal list-inside space-y-1 text-zinc-600 dark:text-zinc-400 pl-1">
+                        <li>点击浏览器右上角或底部的菜单 <strong>···</strong></li>
+                        <li>选择 <strong>「添加至桌面」</strong> 或 <strong>「添加到主屏幕」</strong></li>
+                        <li>确认即可在桌面生成独立全屏 App 图标。</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="pt-1">
+                <button onclick="togglePwaModal()" class="w-full py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-semibold rounded-xl transition">
+                    我知道了
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 备忘录抽屉 -->
+    <div id="notes-drawer" class="fixed inset-y-0 right-0 w-full max-w-sm bg-white dark:bg-zinc-900 shadow-2xl border-l border-zinc-200 dark:border-zinc-800 z-50 transform translate-x-full transition-transform duration-200 flex flex-col">
+        <div class="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fa-regular fa-bookmark text-zinc-700 dark:text-zinc-200 text-sm"></i>
+                <h3 class="font-semibold text-sm text-zinc-900 dark:text-zinc-100">备忘事项</h3>
+            </div>
+            <button onclick="toggleNotesDrawer()" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-sm p-1">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
-        <div class="p-3 border-b border-zinc-100 bg-zinc-50/50">
+        <div class="p-3 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40">
             <div class="flex items-center space-x-1.5">
-                <input type="text" id="new-note-input" placeholder="添加备忘事项..." class="flex-1 text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-zinc-400" onkeydown="if(event.key==='Enter') quickAddNote()">
-                <button onclick="quickAddNote()" class="px-3 py-1.5 bg-zinc-900 text-white text-xs rounded-lg hover:bg-zinc-800 transition font-medium shrink-0">添加</button>
+                <input type="text" id="new-note-input" placeholder="添加备忘事项..." class="flex-1 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-zinc-400" onkeydown="if(event.key==='Enter') quickAddNote()">
+                <button onclick="quickAddNote()" class="px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs rounded-lg hover:bg-zinc-800 dark:hover:bg-zinc-200 transition font-medium shrink-0">添加</button>
             </div>
         </div>
 
@@ -343,63 +538,182 @@
     </div>
 
     <script>
-        // 1. 全局状态 (通过加密 Token 维持登录态)
+        // 1. 全局状态 (加密 Token 与凭证维持永久登录态)
         let authToken = localStorage.getItem("auth_token") || "";
-        let currentUserId = "";
+        let authUser = localStorage.getItem("auth_user") || "";
+        let authKey = localStorage.getItem("auth_key") || "";
+        let currentUserId = authUser || "";
         let currentSessionId = localStorage.getItem("chat_session_id") || "default";
         let currentModel = localStorage.getItem("chat_model") || "gemini-3.5-flash-lite";
         let authMode = "login"; // 'login' | 'register'
         let pendingImageData = null;
         let pendingFileData = null;
         let isSending = false;
+        let currentAbortController = null;
+        let userScrolledUp = false;
+        let authRetryCount = 0;
 
         // 初始化
         window.addEventListener("DOMContentLoaded", () => {
+            initTheme();
             initModel();
             checkAuthStatus();
             setupDragAndDrop();
             setupPasteUpload();
 
-            // 点击外部关闭用户下拉菜单
+            // 点击外部自动关闭下拉菜单
             document.addEventListener("click", (e) => {
                 const btn = document.getElementById("account-btn");
                 const dropdown = document.getElementById("user-dropdown");
                 if (btn && dropdown && !btn.contains(e.target) && !dropdown.contains(e.target)) {
                     dropdown.classList.add("hidden");
                 }
+                const expBtn = document.getElementById("export-btn");
+                const expDropdown = document.getElementById("export-dropdown");
+                if (expBtn && expDropdown && !expBtn.contains(e.target) && !expDropdown.contains(e.target)) {
+                    expDropdown.classList.add("hidden");
+                }
             });
         });
 
-        // 2. 鉴权与密码登录逻辑
+        // 2. 深色 / 浅色模式主题逻辑
+        function initTheme() {
+            const savedTheme = localStorage.getItem("theme");
+            const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add("dark");
+                document.getElementById("meta-theme-color").setAttribute("content", "#09090b");
+            } else {
+                document.documentElement.classList.remove("dark");
+                document.getElementById("meta-theme-color").setAttribute("content", "#ffffff");
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle("dark");
+            localStorage.setItem("theme", isDark ? "dark" : "light");
+            document.getElementById("meta-theme-color").setAttribute("content", isDark ? "#09090b" : "#ffffff");
+        }
+
+        function showWakeupNotice(msg) {
+            let notice = document.getElementById("wakeup-notice");
+            if (!notice) {
+                notice = document.createElement("div");
+                notice.id = "wakeup-notice";
+                notice.className = "fixed top-3 left-1/2 -translate-x-1/2 z-50 px-3.5 py-1.5 bg-zinc-900/90 dark:bg-zinc-100/90 text-white dark:text-zinc-900 text-xs rounded-full shadow-lg flex items-center space-x-2 backdrop-blur-sm pointer-events-none transition";
+                document.body.appendChild(notice);
+            }
+            notice.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-[10px]"></i><span>${msg}</span>`;
+            notice.classList.remove("hidden");
+        }
+
+        function hideWakeupNotice() {
+            const notice = document.getElementById("wakeup-notice");
+            if (notice) notice.classList.add("hidden");
+        }
+
+        // 3. 鉴权与密码登录逻辑 (解决 Render 容器休眠与清空 SQLite 造成的掉登录问题)
         async function checkAuthStatus() {
-            if (!authToken) {
+            // 如果本地完全没有任何登录过的标记
+            if (!authToken && (!authUser || !authKey)) {
                 showAuthModal();
                 return;
             }
 
             try {
-                const res = await fetch(`/api/auth/me?token=${encodeURIComponent(authToken)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.authenticated && data.username) {
-                        currentUserId = data.username;
-                        hideAuthModal();
-                        updateUserUI();
-                        loadSessionsList();
-                        loadChatHistory();
-                        loadNotes();
+                if (authToken) {
+                    const res = await fetch(`/api/auth/me?token=${encodeURIComponent(authToken)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.authenticated && data.username) {
+                            hideWakeupNotice();
+                            currentUserId = data.username;
+                            authUser = data.username;
+                            localStorage.setItem("auth_user", authUser);
+                            hideAuthModal();
+                            updateUserUI();
+                            loadSessionsList();
+                            loadChatHistory();
+                            loadNotes();
+                            return;
+                        }
+                    } else if (res.status >= 500 && authRetryCount < 8) {
+                        // Render 容器可能正在从休眠中唤醒 (冷启动需 15~30s)，严禁清除 Token！
+                        authRetryCount++;
+                        showWakeupNotice("云端服务正在唤醒中，已保留登录状态...");
+                        setTimeout(checkAuthStatus, 2500);
                         return;
                     }
                 }
             } catch (e) {
-                console.error("验证登录失效:", e);
+                // 网络异常或冷启动连接中，自动重试，严禁清空本地状态
+                if (authRetryCount < 8) {
+                    authRetryCount++;
+                    showWakeupNotice("正在连接云端服务 (唤醒中)...");
+                    setTimeout(checkAuthStatus, 2500);
+                    return;
+                }
             }
 
-            // Token 无效或过期
-            localStorage.removeItem("auth_token");
-            authToken = "";
-            currentUserId = "";
+            // 若走到这里，说明服务端连接成功，但返回了 authenticated: false
+            // 这通常是 Render 容器休眠/重启清空了临时 SQLite 文件系统导致的
+            // 此时前端直接凭借本地安全凭证 authUser + authKey 自动静默恢复账户！
+            if (authUser && authKey) {
+                try {
+                    showWakeupNotice("正在自动同步账户...");
+                    const restoreRes = await fetch("/api/auth/restore", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: authUser, user_key: authKey })
+                    });
+                    if (restoreRes.ok) {
+                        const restoreData = await restoreRes.json();
+                        if (restoreData.success && restoreData.token) {
+                            hideWakeupNotice();
+                            authToken = restoreData.token;
+                            currentUserId = restoreData.username;
+                            localStorage.setItem("auth_token", authToken);
+                            hideAuthModal();
+                            updateUserUI();
+                            // 同步恢复本地缓存的历史会话和记录
+                            restoreCachedDataToServer();
+                            loadSessionsList();
+                            loadChatHistory();
+                            loadNotes();
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error("自动静默恢复异常:", e);
+                }
+            }
+
+            hideWakeupNotice();
             showAuthModal();
+        }
+
+        // 本地会话与消息备份，确保即便云端数据库重启被清空也能毫秒级原地复原
+        function cacheCurrentSessionData(sessions) {
+            if (!currentUserId || !sessions) return;
+            try {
+                localStorage.setItem(`cached_sessions_${currentUserId}`, JSON.stringify(sessions));
+            } catch (e) {}
+        }
+
+        async function restoreCachedDataToServer() {
+            if (!currentUserId || !authToken) return;
+            try {
+                const cachedRaw = localStorage.getItem(`cached_sessions_${currentUserId}`);
+                if (!cachedRaw) return;
+                const sessions = JSON.parse(cachedRaw);
+                if (Array.isArray(sessions) && sessions.length > 0) {
+                    await fetch("/api/auth/sync_history", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ token: authToken, sessions: sessions })
+                    });
+                }
+            } catch (e) {}
         }
 
         function showAuthModal() {
@@ -421,13 +735,13 @@
             errorMsg.classList.add("hidden");
 
             if (mode === "login") {
-                tabLogin.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg bg-white shadow-sm text-zinc-900 transition";
-                tabRegister.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-900 transition";
+                tabLogin.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-100 transition";
+                tabRegister.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition";
                 title.innerText = "账户登录";
                 submitBtn.innerText = "登录";
             } else {
-                tabRegister.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg bg-white shadow-sm text-zinc-900 transition";
-                tabLogin.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 hover:text-zinc-900 transition";
+                tabRegister.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-zinc-100 transition";
+                tabLogin.className = "flex-1 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition";
                 title.innerText = "注册新账户";
                 submitBtn.innerText = "创建账户并进入";
             }
@@ -465,7 +779,12 @@
                 if (data.success && data.token) {
                     authToken = data.token;
                     currentUserId = data.username;
+                    authUser = data.username;
+                    authKey = data.user_key || "";
                     localStorage.setItem("auth_token", authToken);
+                    localStorage.setItem("auth_user", authUser);
+                    if (authKey) localStorage.setItem("auth_key", authKey);
+
                     passwordInput.value = "";
                     errorMsg.classList.add("hidden");
                     hideAuthModal();
@@ -495,6 +814,16 @@
             dropdown.classList.toggle("hidden");
         }
 
+        function toggleExportDropdown() {
+            const dropdown = document.getElementById("export-dropdown");
+            dropdown.classList.toggle("hidden");
+        }
+
+        function togglePwaModal() {
+            const modal = document.getElementById("pwa-modal");
+            modal.classList.toggle("hidden");
+        }
+
         async function handleLogout() {
             toggleUserDropdown();
             try {
@@ -506,6 +835,18 @@
             } catch (e) {}
 
             localStorage.removeItem("auth_token");
+            localStorage.removeItem("auth_user");
+            localStorage.removeItem("auth_key");
+            authToken = "";
+            authUser = "";
+            authKey = "";
+            currentUserId = "";
+            updateUserUI();
+            showEmptyState();
+            document.getElementById("sessions-list-container").innerHTML = '<div class="text-center text-xs text-zinc-400 py-10">暂无历史对话</div>';
+            document.getElementById("notes-list-container").innerHTML = '<div class="text-center text-xs text-zinc-400 py-10">暂无备忘事项</div>';
+            showAuthModal();
+        }
             authToken = "";
             currentUserId = "";
             updateUserUI();
@@ -515,7 +856,7 @@
             showAuthModal();
         }
 
-        // 3. 模型设置
+        // 4. 模型设置
         function initModel() {
             const select = document.getElementById("model-select");
             const selectMobile = document.getElementById("model-select-mobile");
@@ -539,7 +880,7 @@
             if (select) select.value = currentModel;
         }
 
-        // 4. 新建对话与会话管理
+        // 5. 新建对话与会话管理
         function startNewSession() {
             currentSessionId = "s_" + Date.now();
             localStorage.setItem("chat_session_id", currentSessionId);
@@ -564,7 +905,9 @@
                 const res = await fetch(`/api/sessions?token=${encodeURIComponent(authToken)}`);
                 if (res.ok) {
                     const data = await res.json();
-                    renderSessionsList(data.sessions || []);
+                    const sessList = data.sessions || [];
+                    cacheCurrentSessionData(sessList);
+                    renderSessionsList(sessList);
                 }
             } catch (e) {
                 console.error("加载会话列表失败:", e);
@@ -585,18 +928,41 @@
             sessions.forEach(sess => {
                 const isActive = sess.id === currentSessionId;
                 const item = document.createElement("div");
-                item.className = `p-2.5 rounded-xl flex items-center justify-between text-xs cursor-pointer transition group ${isActive ? 'bg-zinc-100 font-semibold text-zinc-900 border border-zinc-200' : 'hover:bg-zinc-50 text-zinc-600'}`;
+                item.className = `p-2.5 rounded-xl flex items-center justify-between text-xs cursor-pointer transition group ${isActive ? 'bg-zinc-100 dark:bg-zinc-800 font-semibold text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400'}`;
                 item.innerHTML = `
                     <div class="flex-1 truncate mr-2 flex items-center space-x-1.5" onclick="switchSession('${sess.id}')">
-                        <i class="fa-regular fa-message text-[11px] ${isActive ? 'text-zinc-900' : 'text-zinc-400'}"></i>
-                        <span class="truncate">${escapeHtml(sess.title || '新对话')}</span>
+                        <i class="fa-regular fa-message text-[11px] ${isActive ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-400'}"></i>
+                        <span class="truncate" id="sess-title-${sess.id}">${escapeHtml(sess.title || '新对话')}</span>
                     </div>
-                    <button onclick="event.stopPropagation(); deleteSession('${sess.id}')" class="text-zinc-400 hover:text-zinc-700 p-1 opacity-0 group-hover:opacity-100 transition" title="删除">
-                        <i class="fa-solid fa-xmark text-xs"></i>
-                    </button>
+                    <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                        <button onclick="event.stopPropagation(); renameSession('${sess.id}', '${escapeHtml(sess.title || '')}')" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 p-1" title="重命名">
+                            <i class="fa-solid fa-pen text-[10px]"></i>
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteSession('${sess.id}')" class="text-zinc-400 hover:text-red-600 dark:hover:text-red-400 p-1" title="删除">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </div>
                 `;
                 container.appendChild(item);
             });
+        }
+
+        async function renameSession(sessionId, currentTitle) {
+            const newTitle = prompt("修改对话标题:", currentTitle || "新对话");
+            if (!newTitle || !newTitle.trim() || newTitle.trim() === currentTitle) return;
+
+            try {
+                const res = await fetch("/api/sessions/rename", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ token: authToken, session_id: sessionId, title: newTitle.trim() })
+                });
+                if (res.ok) {
+                    loadSessionsList();
+                }
+            } catch (e) {
+                alert("修改失败: " + e.message);
+            }
         }
 
         function switchSession(sessionId) {
@@ -622,7 +988,7 @@
             }
         }
 
-        // 5. 对话历史加载与渲染
+        // 6. 对话历史加载与渲染
         async function loadChatHistory() {
             if (!authToken) return;
             const container = document.getElementById("chat-container");
@@ -659,13 +1025,57 @@
         function showEmptyState() {
             const container = document.getElementById("chat-container");
             container.innerHTML = `
-                <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center text-zinc-400 space-y-2 py-20">
-                    <div class="w-10 h-10 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 text-sm">
-                        <i class="fa-solid fa-sparkles"></i>
+                <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center max-w-xl mx-auto py-10 px-3 space-y-6">
+                    <div class="space-y-2">
+                        <div class="w-12 h-12 rounded-2xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center font-bold text-base mx-auto shadow-sm">
+                            AI
+                        </div>
+                        <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200">今天有什么可以帮您？</h2>
+                        <p class="text-xs text-zinc-400 dark:text-zinc-500">支持数学公式推导、学术论文速读、代码分析与多模态文件解析</p>
                     </div>
-                    <div class="text-xs text-zinc-400 font-normal">输入消息或拖入文件开始对话</div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
+                        <button onclick="useStarterPrompt('推导并求解高数常微分方程，并给出详细分步解题推导过程。')" class="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition text-xs shadow-sm hover:shadow flex flex-col space-y-1 group">
+                            <div class="flex items-center space-x-2 font-medium text-zinc-800 dark:text-zinc-200">
+                                <i class="fa-solid fa-square-root-variable text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white transition"></i>
+                                <span>学科难题推导</span>
+                            </div>
+                            <div class="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">微积分推导、分步计算与公式演算</div>
+                        </button>
+
+                        <button onclick="useStarterPrompt('审查以下代码的时间复杂度与空间复杂度，并给出重构优化方案：\\n\\n\`\`\`python\\n\\n\`\`\`')" class="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition text-xs shadow-sm hover:shadow flex flex-col space-y-1 group">
+                            <div class="flex items-center space-x-2 font-medium text-zinc-800 dark:text-zinc-200">
+                                <i class="fa-solid fa-code text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white transition"></i>
+                                <span>代码重构与分析</span>
+                            </div>
+                            <div class="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">算法复杂度、代码审查、Bug 定位</div>
+                        </button>
+
+                        <button onclick="useStarterPrompt('请结合上传的文档或论文，提炼核心论点、创新方法与关键实验结论。')" class="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition text-xs shadow-sm hover:shadow flex flex-col space-y-1 group">
+                            <div class="flex items-center space-x-2 font-medium text-zinc-800 dark:text-zinc-200">
+                                <i class="fa-regular fa-file-lines text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white transition"></i>
+                                <span>文档与论文速读</span>
+                            </div>
+                            <div class="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">核心结论提炼、要点摘要、跨语言翻译</div>
+                        </button>
+
+                        <button onclick="useStarterPrompt('用严密的第一性原理拆解一个复杂逻辑问题，给出清晰的推理逻辑链。')" class="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition text-xs shadow-sm hover:shadow flex flex-col space-y-1 group">
+                            <div class="flex items-center space-x-2 font-medium text-zinc-800 dark:text-zinc-200">
+                                <i class="fa-solid fa-brain text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-white transition"></i>
+                                <span>逻辑深度推演</span>
+                            </div>
+                            <div class="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">第一性原理、多步骤推理、决策框架</div>
+                        </button>
+                    </div>
                 </div>
             `;
+        }
+
+        function useStarterPrompt(text) {
+            const input = document.getElementById("user-input");
+            input.value = text;
+            autoResize(input);
+            input.focus();
         }
 
         async function confirmClearCurrentHistory() {
@@ -681,7 +1091,42 @@
             }
         }
 
-        // 6. 消息排版与渲染
+        // 7. 深度思考标签解析与消息排版渲染
+        function parseContentWithThinking(rawText) {
+            if (!rawText) return "";
+            let processed = rawText;
+
+            // 处理未闭合的流式 <think> 思考过程
+            if (processed.includes("<think>") && !processed.includes("</think>")) {
+                processed = processed.replace(
+                    /<think>([\s\S]*)$/,
+                    `<details class="thinking-box mb-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 p-2.5 text-xs" open>
+                        <summary class="cursor-pointer font-medium select-none flex items-center justify-between text-zinc-600 dark:text-zinc-400">
+                            <span class="flex items-center space-x-1.5"><i class="fa-solid fa-brain text-amber-500 animate-pulse text-[11px]"></i><span>深度思考中...</span></span>
+                        </summary>
+                        <div class="mt-2 pt-2 border-t border-zinc-200/60 dark:border-zinc-800 leading-relaxed text-zinc-600 dark:text-zinc-400 font-mono text-[11px] whitespace-pre-wrap">$1</div>
+                    </details>`
+                );
+                return marked.parse(processed);
+            }
+
+            // 处理已闭合的 <think>...</think>
+            processed = processed.replace(
+                /<think>([\s\S]*?)<\/think>/g,
+                (match, p1) => {
+                    return `\n\n<details class="thinking-box mb-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 p-2.5 text-xs">
+                        <summary class="cursor-pointer font-medium select-none flex items-center justify-between text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200">
+                            <span class="flex items-center space-x-1.5"><i class="fa-solid fa-brain text-zinc-500 text-[11px]"></i><span>已深度思考</span></span>
+                            <span class="text-[10px] text-zinc-400 font-normal">点击展开/折叠</span>
+                        </summary>
+                        <div class="mt-2 pt-2 border-t border-zinc-200/60 dark:border-zinc-800 leading-relaxed text-zinc-600 dark:text-zinc-400 font-mono text-[11px] whitespace-pre-wrap">${p1.trim()}</div>
+                    </details>\n\n`;
+                }
+            );
+
+            return marked.parse(processed);
+        }
+
         function appendMessageToUI(role, content, timestamp = null, shouldScroll = true) {
             const container = document.getElementById("chat-container");
             const emptyState = document.getElementById("empty-state");
@@ -689,48 +1134,43 @@
 
             const timeStr = timestamp ? (timestamp.length > 16 ? timestamp.substring(11, 16) : timestamp) : "";
             const row = document.createElement("div");
-            row.className = role === "user" ? "flex justify-end" : "flex justify-start";
+            row.className = role === "user" ? "flex justify-end group/msg" : "flex justify-start group/msg";
 
             if (role === "user") {
                 row.innerHTML = `
                     <div class="flex flex-col items-end max-w-[85%] sm:max-w-[70%]">
-                        <div class="bg-zinc-900 text-zinc-100 text-sm px-4 py-2.5 rounded-2xl rounded-tr-xs leading-relaxed break-words whitespace-pre-wrap select-text">
+                        <div class="bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 text-sm px-4 py-2.5 rounded-2xl rounded-tr-xs leading-relaxed break-words whitespace-pre-wrap select-text shadow-sm user-msg-box">
                             ${escapeHtml(content)}
                         </div>
-                        ${timeStr ? `<span class="text-[10px] text-zinc-400 mt-1 mr-1">${timeStr}</span>` : ""}
+                        <div class="flex items-center space-x-1.5 mt-1 mr-1 text-[10px] text-zinc-400">
+                            ${timeStr ? `<span>${timeStr}</span>` : ""}
+                            <button onclick="editUserMessage(this)" class="hover:text-zinc-600 dark:hover:text-zinc-300 opacity-0 group-hover/msg:opacity-100 transition" title="编辑上一条">
+                                <i class="fa-solid fa-pen text-[9px]"></i>
+                            </button>
+                        </div>
                     </div>
                 `;
             } else {
-                const rawHtml = marked.parse(content || "");
+                const rawHtml = parseContentWithThinking(content || "");
                 const wrapper = document.createElement("div");
                 wrapper.className = "flex flex-col items-start max-w-[95%] sm:max-w-[85%]";
                 wrapper.innerHTML = `
-                    <div class="bg-white border border-zinc-200/90 text-zinc-800 text-sm px-4 sm:px-5 py-3.5 rounded-2xl rounded-tl-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] prose-msg leading-relaxed break-words w-full select-text">
+                    <div class="bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 text-sm px-4 sm:px-5 py-3.5 rounded-2xl rounded-tl-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] prose-msg leading-relaxed break-words w-full select-text">
                         ${rawHtml}
                     </div>
-                    <div class="flex items-center space-x-2 mt-1 ml-1 text-[10px] text-zinc-400">
+                    <div class="flex items-center space-x-2.5 mt-1 ml-1 text-[10px] text-zinc-400">
                         ${timeStr ? `<span>${timeStr}</span>` : ""}
-                        <button onclick="copyRawText(this)" class="hover:text-zinc-600 transition" title="复制回答">
+                        <button onclick="copyRawText(this)" class="hover:text-zinc-600 dark:hover:text-zinc-300 transition" title="复制回答">
                             <i class="fa-regular fa-copy"></i>
+                        </button>
+                        <button onclick="regenerateLastResponse(this)" class="hover:text-zinc-600 dark:hover:text-zinc-300 transition" title="重新生成">
+                            <i class="fa-solid fa-rotate-right"></i>
                         </button>
                     </div>
                 `;
 
-                // 代码复制
-                const preElements = wrapper.querySelectorAll("pre");
-                preElements.forEach(pre => {
-                    const copyBtn = document.createElement("button");
-                    copyBtn.className = "copy-code-btn";
-                    copyBtn.innerText = "复制";
-                    copyBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        const code = pre.querySelector("code") ? pre.querySelector("code").innerText : pre.innerText;
-                        navigator.clipboard.writeText(code);
-                        copyBtn.innerText = "已复制";
-                        setTimeout(() => copyBtn.innerText = "复制", 1500);
-                    };
-                    pre.appendChild(copyBtn);
-                });
+                // 代码复制按钮绑定
+                bindCopyCodeButtons(wrapper);
 
                 // KaTeX 数学公式渲染
                 renderMathInElement(wrapper, {
@@ -747,57 +1187,104 @@
             }
 
             container.appendChild(row);
-            if (shouldScroll) scrollToBottom();
+            if (shouldScroll && !userScrolledUp) scrollToBottom();
             return row;
         }
 
-        // 创建实时打字机流式输出组件
+        // 编辑用户消息
+        function editUserMessage(btn) {
+            const row = btn.closest(".group\\/msg");
+            const box = row.querySelector(".user-msg-box");
+            if (box) {
+                const text = box.innerText.replace(/^\[图片\]\s*/, "").replace(/^\[文件:.*?\]\s*/, "");
+                const input = document.getElementById("user-input");
+                input.value = text;
+                autoResize(input);
+                input.focus();
+            }
+        }
+
+        // 重新生成上一条 AI 回答
+        async function regenerateLastResponse(btn) {
+            if (isSending) return;
+            const row = btn.closest(".group\\/msg");
+            if (!row) return;
+
+            try {
+                const res = await fetch("/api/chat/delete_last", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ token: authToken, session_id: currentSessionId })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    row.remove();
+                    if (data.prompt) {
+                        const cleanPrompt = data.prompt.replace(/^\[图片\]\s*/, "").replace(/^\[文件:.*?\]\s*/, "");
+                        triggerDirectSend(cleanPrompt);
+                    }
+                }
+            } catch (e) {
+                alert("重新生成失败: " + e.message);
+            }
+        }
+
+        function bindCopyCodeButtons(rootEl) {
+            const preElements = rootEl.querySelectorAll("pre");
+            preElements.forEach(pre => {
+                if (pre.querySelector(".copy-code-btn")) return;
+                const copyBtn = document.createElement("button");
+                copyBtn.className = "copy-code-btn";
+                copyBtn.innerText = "复制";
+                copyBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    const code = pre.querySelector("code") ? pre.querySelector("code").innerText : pre.innerText;
+                    navigator.clipboard.writeText(code);
+                    copyBtn.innerText = "已复制";
+                    setTimeout(() => copyBtn.innerText = "复制", 1500);
+                };
+                pre.appendChild(copyBtn);
+            });
+        }
+
+        // 创建打字机流式输出组件
         function createStreamingMessageUI() {
             const container = document.getElementById("chat-container");
             const emptyState = document.getElementById("empty-state");
             if (emptyState) emptyState.remove();
 
             const row = document.createElement("div");
-            row.className = "flex justify-start";
+            row.className = "flex justify-start group/msg";
             row.innerHTML = `
                 <div class="flex flex-col items-start max-w-[95%] sm:max-w-[85%] w-full">
-                    <div class="bg-white border border-zinc-200/90 text-zinc-800 text-sm px-4 sm:px-5 py-3.5 rounded-2xl rounded-tl-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] prose-msg leading-relaxed break-words w-full select-text">
-                        <span class="inline-block w-1.5 h-3.5 bg-zinc-400 animate-pulse align-middle"></span>
+                    <div class="bg-white dark:bg-zinc-900 border border-zinc-200/90 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 text-sm px-4 sm:px-5 py-3.5 rounded-2xl rounded-tl-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] prose-msg leading-relaxed break-words w-full select-text">
+                        <span class="inline-block w-1.5 h-3.5 bg-zinc-400 dark:bg-zinc-500 animate-pulse align-middle"></span>
                     </div>
-                    <div class="flex items-center space-x-2 mt-1 ml-1 text-[10px] text-zinc-400">
+                    <div class="flex items-center space-x-2.5 mt-1 ml-1 text-[10px] text-zinc-400">
                         <span class="time-label">${new Date().toLocaleTimeString().substring(0, 5)}</span>
-                        <button onclick="copyRawText(this)" class="hover:text-zinc-600 transition" title="复制回答">
+                        <button onclick="copyRawText(this)" class="hover:text-zinc-600 dark:hover:text-zinc-300 transition" title="复制回答">
                             <i class="fa-regular fa-copy"></i>
+                        </button>
+                        <button onclick="regenerateLastResponse(this)" class="hover:text-zinc-600 dark:hover:text-zinc-300 transition" title="重新生成">
+                            <i class="fa-solid fa-rotate-right"></i>
                         </button>
                     </div>
                 </div>
             `;
             container.appendChild(row);
-            scrollToBottom();
+            if (!userScrolledUp) scrollToBottom();
 
             const contentDiv = row.querySelector(".prose-msg");
             return {
                 row: row,
                 update: function(text) {
-                    contentDiv.innerHTML = marked.parse(text || "") + '<span class="inline-block w-1.5 h-3.5 bg-zinc-400 animate-pulse ml-0.5 align-middle"></span>';
-                    scrollToBottom();
+                    contentDiv.innerHTML = parseContentWithThinking(text || "") + '<span class="inline-block w-1.5 h-3.5 bg-zinc-400 dark:bg-zinc-500 animate-pulse ml-0.5 align-middle"></span>';
+                    if (!userScrolledUp) scrollToBottom();
                 },
                 finalize: function(text) {
-                    contentDiv.innerHTML = marked.parse(text || "");
-                    const preElements = row.querySelectorAll("pre");
-                    preElements.forEach(pre => {
-                        const copyBtn = document.createElement("button");
-                        copyBtn.className = "copy-code-btn";
-                        copyBtn.innerText = "复制";
-                        copyBtn.onclick = (e) => {
-                            e.stopPropagation();
-                            const code = pre.querySelector("code") ? pre.querySelector("code").innerText : pre.innerText;
-                            navigator.clipboard.writeText(code);
-                            copyBtn.innerText = "已复制";
-                            setTimeout(() => copyBtn.innerText = "复制", 1500);
-                        };
-                        pre.appendChild(copyBtn);
-                    });
+                    contentDiv.innerHTML = parseContentWithThinking(text || "");
+                    bindCopyCodeButtons(row);
 
                     renderMathInElement(contentDiv, {
                         delimiters: [
@@ -808,7 +1295,7 @@
                         ],
                         throwOnError: false
                     });
-                    scrollToBottom();
+                    if (!userScrolledUp) scrollToBottom();
                 }
             };
         }
@@ -818,8 +1305,23 @@
             if (card) {
                 navigator.clipboard.writeText(card.innerText);
                 const originalHtml = btn.innerHTML;
-                btn.innerHTML = '<i class="fa-solid fa-check text-zinc-600"></i>';
+                btn.innerHTML = '<i class="fa-solid fa-check text-zinc-600 dark:text-zinc-300"></i>';
                 setTimeout(() => btn.innerHTML = originalHtml, 1500);
+            }
+        }
+
+        // 8. 智能滚屏检测与平滑滚动
+        function onChatScroll() {
+            const container = document.getElementById("chat-container");
+            const btn = document.getElementById("scroll-bottom-btn");
+            const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+
+            if (isNearBottom) {
+                userScrolledUp = false;
+                btn.classList.add("opacity-0", "pointer-events-none");
+            } else {
+                userScrolledUp = true;
+                btn.classList.remove("opacity-0", "pointer-events-none");
             }
         }
 
@@ -828,13 +1330,59 @@
             container.scrollTop = container.scrollHeight;
         }
 
+        function scrollToBottomSmooth() {
+            const container = document.getElementById("chat-container");
+            container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+            userScrolledUp = false;
+        }
+
         function escapeHtml(str) {
             return (str || "").replace(/[&<>'"]/g, 
                 tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
             );
         }
 
-        // 7. 发送消息 (强制校验 Token)
+        // 9. 发送 / 停止生成控制核心 (AbortController)
+        function onSendOrStopClick() {
+            if (isSending) {
+                stopGeneration();
+            } else {
+                sendMessage();
+            }
+        }
+
+        function setGeneratingUI(generating) {
+            isSending = generating;
+            const btn = document.getElementById("send-btn");
+            const icon = document.getElementById("send-btn-icon");
+
+            if (generating) {
+                btn.classList.remove("bg-zinc-900", "dark:bg-zinc-100", "text-white", "dark:text-zinc-900");
+                btn.classList.add("bg-zinc-700", "text-white");
+                btn.title = "停止生成";
+                icon.className = "fa-solid fa-square text-[9px]";
+            } else {
+                btn.classList.remove("bg-zinc-700", "text-white");
+                btn.classList.add("bg-zinc-900", "dark:bg-zinc-100", "text-white", "dark:text-zinc-900");
+                btn.title = "发送";
+                icon.className = "fa-solid fa-arrow-up text-xs";
+            }
+        }
+
+        function stopGeneration() {
+            if (currentAbortController) {
+                currentAbortController.abort();
+                currentAbortController = null;
+            }
+            setGeneratingUI(false);
+        }
+
+        async function triggerDirectSend(text) {
+            const input = document.getElementById("user-input");
+            input.value = text;
+            sendMessage();
+        }
+
         async function sendMessage() {
             if (!authToken) {
                 showAuthModal();
@@ -846,8 +1394,8 @@
 
             if (!text && !pendingImageData && !pendingFileData) return;
 
-            isSending = true;
-            document.getElementById("send-btn").disabled = true;
+            setGeneratingUI(true);
+            currentAbortController = new AbortController();
 
             // 组装展示文本
             let displayText = text;
@@ -882,7 +1430,8 @@
                 const res = await fetch("/api/chat/stream", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(payload),
+                    signal: currentAbortController.signal
                 });
 
                 if (res.ok && res.body) {
@@ -925,10 +1474,14 @@
                     msgObj.finalize("请求失败，请稍后重试。");
                 }
             } catch (e) {
-                msgObj.finalize(`通信异常: ${e.message}`);
+                if (e.name === "AbortError") {
+                    msgObj.finalize(accumulatedText + "\n\n*(已停止生成)*");
+                } else {
+                    msgObj.finalize(`通信异常: ${e.message}`);
+                }
             } finally {
-                isSending = false;
-                document.getElementById("send-btn").disabled = false;
+                setGeneratingUI(false);
+                currentAbortController = null;
                 input.focus();
             }
         }
@@ -945,7 +1498,7 @@
             textarea.style.height = Math.min(textarea.scrollHeight, 140) + "px";
         }
 
-        // 8. 附件选择与拖拽处理
+        // 10. 附件选择与拖拽处理
         function onImageSelected(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -1100,7 +1653,42 @@
             });
         }
 
-        // 9. 备忘录管理 (强制 Token 鉴权)
+        // 11. 对话导出功能 (Markdown 与 PDF 打印)
+        async function exportChatToMarkdown() {
+            if (!authToken) return;
+            try {
+                const res = await fetch(`/api/history?token=${encodeURIComponent(authToken)}&session_id=${encodeURIComponent(currentSessionId)}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const history = data.history || [];
+                if (history.length === 0) {
+                    alert("当前对话暂无内容可导出。");
+                    return;
+                }
+
+                let md = `# AI 对话导出记录\n*生成时间: ${new Date().toLocaleString()}*\n*会话编号: ${currentSessionId}*\n\n---\n\n`;
+                history.forEach(item => {
+                    const roleName = item.role === "user" ? "### 👤 用户" : "### 🤖 AI";
+                    md += `${roleName} *(${item.created_at})*\n\n${item.content}\n\n---\n\n`;
+                });
+
+                const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `AI_Chat_${currentSessionId}_${Date.now()}.md`;
+                a.click();
+                URL.revokeObjectURL(a);
+            } catch (e) {
+                alert("导出失败: " + e.message);
+            }
+        }
+
+        function printChat() {
+            window.print();
+        }
+
+        // 12. 备忘录管理 (强制 Token 鉴权)
         function toggleNotesDrawer() {
             const drawer = document.getElementById("notes-drawer");
             drawer.classList.toggle("translate-x-full");
@@ -1132,16 +1720,16 @@
             container.innerHTML = "";
             notes.forEach(n => {
                 const card = document.createElement("div");
-                card.className = "p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl flex items-start justify-between text-xs space-x-2";
+                card.className = "p-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl flex items-start justify-between text-xs space-x-2";
                 card.innerHTML = `
                     <div class="flex-1 space-y-1">
-                        <div class="text-zinc-800 break-words">${escapeHtml(n.content)}</div>
+                        <div class="text-zinc-800 dark:text-zinc-200 break-words">${escapeHtml(n.content)}</div>
                         <div class="text-[10px] text-zinc-400 flex items-center space-x-1.5">
-                            <span class="bg-zinc-200/60 px-1.5 py-0.2 rounded text-zinc-600">${escapeHtml(n.category || '备忘')}</span>
+                            <span class="bg-zinc-200/60 dark:bg-zinc-700 px-1.5 py-0.2 rounded text-zinc-600 dark:text-zinc-300">${escapeHtml(n.category || '备忘')}</span>
                             <span>${(n.created_at || '').substring(5, 16)}</span>
                         </div>
                     </div>
-                    <button onclick="deleteNote(${n.id})" class="text-zinc-400 hover:text-zinc-700 p-1" title="删除">
+                    <button onclick="deleteNote(${n.id})" class="text-zinc-400 hover:text-red-500 p-1" title="删除">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 `;

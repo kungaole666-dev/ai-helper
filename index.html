@@ -538,9 +538,11 @@
     </div>
 
     <script>
-        // 1. 全局状态 (加密 Token 维持登录态)
+        // 1. 全局状态 (加密 Token 与凭证维持永久登录态)
         let authToken = localStorage.getItem("auth_token") || "";
-        let currentUserId = "";
+        let authUser = localStorage.getItem("auth_user") || "";
+        let authKey = localStorage.getItem("auth_key") || "";
+        let currentUserId = authUser || "";
         let currentSessionId = localStorage.getItem("chat_session_id") || "default";
         let currentModel = localStorage.getItem("chat_model") || "gemini-3.5-flash-lite";
         let authMode = "login"; // 'login' | 'register'
@@ -549,6 +551,7 @@
         let isSending = false;
         let currentAbortController = null;
         let userScrolledUp = false;
+        let authRetryCount = 0;
 
         // 初始化
         window.addEventListener("DOMContentLoaded", () => {
@@ -592,36 +595,125 @@
             document.getElementById("meta-theme-color").setAttribute("content", isDark ? "#09090b" : "#ffffff");
         }
 
-        // 3. 鉴权与密码登录逻辑
+        function showWakeupNotice(msg) {
+            let notice = document.getElementById("wakeup-notice");
+            if (!notice) {
+                notice = document.createElement("div");
+                notice.id = "wakeup-notice";
+                notice.className = "fixed top-3 left-1/2 -translate-x-1/2 z-50 px-3.5 py-1.5 bg-zinc-900/90 dark:bg-zinc-100/90 text-white dark:text-zinc-900 text-xs rounded-full shadow-lg flex items-center space-x-2 backdrop-blur-sm pointer-events-none transition";
+                document.body.appendChild(notice);
+            }
+            notice.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-[10px]"></i><span>${msg}</span>`;
+            notice.classList.remove("hidden");
+        }
+
+        function hideWakeupNotice() {
+            const notice = document.getElementById("wakeup-notice");
+            if (notice) notice.classList.add("hidden");
+        }
+
+        // 3. 鉴权与密码登录逻辑 (解决 Render 容器休眠与清空 SQLite 造成的掉登录问题)
         async function checkAuthStatus() {
-            if (!authToken) {
+            // 如果本地完全没有任何登录过的标记
+            if (!authToken && (!authUser || !authKey)) {
                 showAuthModal();
                 return;
             }
 
             try {
-                const res = await fetch(`/api/auth/me?token=${encodeURIComponent(authToken)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.authenticated && data.username) {
-                        currentUserId = data.username;
-                        hideAuthModal();
-                        updateUserUI();
-                        loadSessionsList();
-                        loadChatHistory();
-                        loadNotes();
+                if (authToken) {
+                    const res = await fetch(`/api/auth/me?token=${encodeURIComponent(authToken)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.authenticated && data.username) {
+                            hideWakeupNotice();
+                            currentUserId = data.username;
+                            authUser = data.username;
+                            localStorage.setItem("auth_user", authUser);
+                            hideAuthModal();
+                            updateUserUI();
+                            loadSessionsList();
+                            loadChatHistory();
+                            loadNotes();
+                            return;
+                        }
+                    } else if (res.status >= 500 && authRetryCount < 8) {
+                        // Render 容器可能正在从休眠中唤醒 (冷启动需 15~30s)，严禁清除 Token！
+                        authRetryCount++;
+                        showWakeupNotice("云端服务正在唤醒中，已保留登录状态...");
+                        setTimeout(checkAuthStatus, 2500);
                         return;
                     }
                 }
             } catch (e) {
-                console.error("验证登录失效:", e);
+                // 网络异常或冷启动连接中，自动重试，严禁清空本地状态
+                if (authRetryCount < 8) {
+                    authRetryCount++;
+                    showWakeupNotice("正在连接云端服务 (唤醒中)...");
+                    setTimeout(checkAuthStatus, 2500);
+                    return;
+                }
             }
 
-            // Token 无效或过期
-            localStorage.removeItem("auth_token");
-            authToken = "";
-            currentUserId = "";
+            // 若走到这里，说明服务端连接成功，但返回了 authenticated: false
+            // 这通常是 Render 容器休眠/重启清空了临时 SQLite 文件系统导致的
+            // 此时前端直接凭借本地安全凭证 authUser + authKey 自动静默恢复账户！
+            if (authUser && authKey) {
+                try {
+                    showWakeupNotice("正在自动同步账户...");
+                    const restoreRes = await fetch("/api/auth/restore", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: authUser, user_key: authKey })
+                    });
+                    if (restoreRes.ok) {
+                        const restoreData = await restoreRes.json();
+                        if (restoreData.success && restoreData.token) {
+                            hideWakeupNotice();
+                            authToken = restoreData.token;
+                            currentUserId = restoreData.username;
+                            localStorage.setItem("auth_token", authToken);
+                            hideAuthModal();
+                            updateUserUI();
+                            // 同步恢复本地缓存的历史会话和记录
+                            restoreCachedDataToServer();
+                            loadSessionsList();
+                            loadChatHistory();
+                            loadNotes();
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error("自动静默恢复异常:", e);
+                }
+            }
+
+            hideWakeupNotice();
             showAuthModal();
+        }
+
+        // 本地会话与消息备份，确保即便云端数据库重启被清空也能毫秒级原地复原
+        function cacheCurrentSessionData(sessions) {
+            if (!currentUserId || !sessions) return;
+            try {
+                localStorage.setItem(`cached_sessions_${currentUserId}`, JSON.stringify(sessions));
+            } catch (e) {}
+        }
+
+        async function restoreCachedDataToServer() {
+            if (!currentUserId || !authToken) return;
+            try {
+                const cachedRaw = localStorage.getItem(`cached_sessions_${currentUserId}`);
+                if (!cachedRaw) return;
+                const sessions = JSON.parse(cachedRaw);
+                if (Array.isArray(sessions) && sessions.length > 0) {
+                    await fetch("/api/auth/sync_history", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ token: authToken, sessions: sessions })
+                    });
+                }
+            } catch (e) {}
         }
 
         function showAuthModal() {
@@ -687,7 +779,12 @@
                 if (data.success && data.token) {
                     authToken = data.token;
                     currentUserId = data.username;
+                    authUser = data.username;
+                    authKey = data.user_key || "";
                     localStorage.setItem("auth_token", authToken);
+                    localStorage.setItem("auth_user", authUser);
+                    if (authKey) localStorage.setItem("auth_key", authKey);
+
                     passwordInput.value = "";
                     errorMsg.classList.add("hidden");
                     hideAuthModal();
@@ -738,6 +835,18 @@
             } catch (e) {}
 
             localStorage.removeItem("auth_token");
+            localStorage.removeItem("auth_user");
+            localStorage.removeItem("auth_key");
+            authToken = "";
+            authUser = "";
+            authKey = "";
+            currentUserId = "";
+            updateUserUI();
+            showEmptyState();
+            document.getElementById("sessions-list-container").innerHTML = '<div class="text-center text-xs text-zinc-400 py-10">暂无历史对话</div>';
+            document.getElementById("notes-list-container").innerHTML = '<div class="text-center text-xs text-zinc-400 py-10">暂无备忘事项</div>';
+            showAuthModal();
+        }
             authToken = "";
             currentUserId = "";
             updateUserUI();
@@ -796,7 +905,9 @@
                 const res = await fetch(`/api/sessions?token=${encodeURIComponent(authToken)}`);
                 if (res.ok) {
                     const data = await res.json();
-                    renderSessionsList(data.sessions || []);
+                    const sessList = data.sessions || [];
+                    cacheCurrentSessionData(sessList);
+                    renderSessionsList(sessList);
                 }
             } catch (e) {
                 console.error("加载会话列表失败:", e);

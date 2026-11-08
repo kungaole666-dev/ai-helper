@@ -57,19 +57,43 @@ class AuthRequest(BaseModel):
 class LogoutRequest(BaseModel):
     token: str
 
+class RestoreRequest(BaseModel):
+    username: str
+    user_key: str
+
+class SyncHistoryRequest(BaseModel):
+    token: str
+    sessions: list
+
 @app.post("/api/auth/register")
 def api_register(req: AuthRequest):
-    success, msg, token = db.register_user(req.username, req.password)
+    success, msg, token, user_key = db.register_user(req.username, req.password)
     if not success:
         return {"success": False, "message": msg}
-    return {"success": True, "message": msg, "token": token, "username": req.username.strip()}
+    return {"success": True, "message": msg, "token": token, "username": req.username.strip(), "user_key": user_key}
 
 @app.post("/api/auth/login")
 def api_login(req: AuthRequest):
-    success, msg, token = db.login_user(req.username, req.password)
+    success, msg, token, user_key = db.login_user(req.username, req.password)
     if not success:
         return {"success": False, "message": msg}
-    return {"success": True, "message": msg, "token": token, "username": req.username.strip()}
+    return {"success": True, "message": msg, "token": token, "username": req.username.strip(), "user_key": user_key}
+
+@app.post("/api/auth/restore")
+def api_restore(req: RestoreRequest):
+    success, msg, token = db.restore_user(req.username, req.user_key)
+    if not success:
+        return {"success": False, "message": msg}
+    return {"success": True, "token": token, "username": req.username.strip()}
+
+@app.post("/api/auth/sync_history")
+def api_sync_history(req: SyncHistoryRequest):
+    user_id = db.verify_token(req.token)
+    if not user_id:
+        return {"success": False}
+    for sess in req.sessions:
+        db.sync_push_history(user_id, sess.get("id"), sess.get("title"), sess.get("messages", []))
+    return {"success": True}
 
 @app.get("/api/auth/me")
 def api_auth_me(token: str = Query(...)):
