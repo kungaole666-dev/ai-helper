@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 智能助手 · Gemini 驱动</title>
+    <title>AI 智能助手 · Gemini 多模态解题与记事</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Marked Markdown 解析 -->
@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
-    <!-- 引入图标 -->
+    <!-- 引入 FontAwesome 图标 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -25,30 +25,38 @@
 <body class="bg-gray-100 h-screen flex flex-col justify-between overflow-hidden">
 
     <!-- 顶部导航栏 -->
-    <header class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm z-10">
-        <div class="flex items-center space-x-3">
-            <div class="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                <i class="fa-solid fa-sparkles text-sm"></i>
+    <header class="bg-white border-b border-gray-200 px-3.5 py-2.5 flex items-center justify-between shadow-sm z-10">
+        <div class="flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                <i class="fa-solid fa-sparkles"></i>
             </div>
             <div>
-                <h1 class="font-bold text-gray-800 text-base leading-tight">AI 智能助手</h1>
-                <p class="text-xs text-gray-500 flex items-center">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1"></span>
-                    Gemini 3.8 Flash · 解题与记事
+                <h1 class="font-bold text-gray-800 text-sm sm:text-base leading-tight">AI 智能解题助手</h1>
+                <p class="text-[11px] text-gray-400 flex items-center">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block mr-1"></span>
+                    多模态识图 · 对话记忆
                 </p>
             </div>
         </div>
-        <div class="flex items-center space-x-2">
-            <!-- 官方免费模型专属选择器 -->
+
+        <div class="flex items-center space-x-1.5">
+            <!-- 官方免费模型选择器 -->
             <select id="model-select" onchange="onModelChange()" class="text-xs bg-gray-50 border border-gray-200 text-gray-700 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium cursor-pointer">
-                <option value="gemini-3.8-flash" selected>🔥 Gemini 3.8 Flash (最新主力 · 免费)</option>
-                <option value="gemini-3.5-flash-lite">⚡ Gemini 3.5 Flash Lite (极速响应 · 免费)</option>
+                <option value="gemini-3.8-flash" selected>🔥 Gemini 3.8 Flash (解题首选 · 免费)</option>
+                <option value="gemini-3.5-flash-lite">⚡ Gemini 3.5 Flash Lite (极速 · 免费)</option>
                 <option value="gemini-3.1-pro-preview">🧠 Gemini 3.1 Pro (深度推理 · 免费)</option>
                 <option value="gemini-3.1-flash-lite">🚀 Gemini 3.1 Flash Lite (稳定 · 免费)</option>
             </select>
-            <button onclick="toggleNotesDrawer()" class="px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition flex items-center space-x-1">
+
+            <!-- 我的备忘录按钮 -->
+            <button onclick="toggleNotesDrawer()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition flex items-center space-x-1" title="我的备忘录">
                 <i class="fa-regular fa-clipboard"></i>
-                <span class="hidden sm:inline">我的</span><span>备忘</span>
+                <span class="hidden sm:inline">备忘</span>
+            </button>
+
+            <!-- 清空对话记忆按钮 -->
+            <button onclick="confirmClearHistory()" class="px-2 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 border border-gray-200 transition" title="清空对话记忆">
+                <i class="fa-solid fa-broom"></i>
             </button>
         </div>
     </header>
@@ -56,14 +64,15 @@
     <!-- 聊天消息展示区域 -->
     <main id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-4">
         <!-- 欢迎卡片 -->
-        <div class="flex justify-start">
+        <div id="welcome-card" class="flex justify-start">
             <div class="max-w-[88%] bg-white p-3.5 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100 text-gray-800 text-sm leading-relaxed">
-                <p class="font-semibold text-emerald-600 mb-1">👋 你好！我是你的专属 AI 助理</p>
-                <p class="text-gray-600 mb-2">我支持多用户数据隔离，你可以直接告诉我：</p>
-                <ul class="text-xs text-gray-500 space-y-1 list-disc list-inside">
-                    <li><strong class="text-gray-700">📐 解题辅导</strong>：直接发数学/物理题，给出分步演算与公式推导</li>
-                    <li><strong class="text-gray-700">📝 记事提醒</strong>：发送“记一下：明天下午开会”自动存入清单</li>
-                    <li><strong class="text-gray-700">🔍 联网检索</strong>：发送“搜一下：xxx”获取最新信息</li>
+                <p class="font-semibold text-emerald-600 mb-1">👋 你好！我是你的专属 AI 解题与记事助理</p>
+                <p class="text-gray-600 mb-2">已开启<strong>持久化对话记忆</strong>与<strong>拍照识图解题</strong>，你可以：</p>
+                <ul class="text-xs text-gray-500 space-y-1.5 list-disc list-inside">
+                    <li><strong class="text-gray-700">📷 上传题目图片</strong>：点击左下角相机图标或截图直接粘贴（Ctrl+V），拍照解题！</li>
+                    <li><strong class="text-gray-700">📐 输入公式/文字</strong>：直接发数学、物理题，自动输出分步演算与公式</li>
+                    <li><strong class="text-gray-700">📝 智能记事本</strong>：发送“记一下：明天开会”自动归档</li>
+                    <li><strong class="text-gray-700">🧠 连续对话</strong>：刷新页面后对话不丢失，记得上下文！</li>
                 </ul>
             </div>
         </div>
@@ -71,30 +80,55 @@
 
     <!-- 底部输入区域 -->
     <footer class="bg-white border-t border-gray-200 p-3 z-10">
+        <!-- 待发送图片缩略预览卡片 -->
+        <div id="image-preview-container" class="hidden items-center mb-2 p-1.5 bg-gray-50 border border-gray-200 rounded-xl w-fit">
+            <img id="image-preview" src="" class="w-14 h-14 object-cover rounded-lg border border-gray-200 mr-2" alt="预览">
+            <div class="text-xs text-gray-500 mr-2">
+                <p class="font-medium text-gray-700">已附加题目图片</p>
+                <p class="text-[10px] text-gray-400">点击右侧叉号撤销</p>
+            </div>
+            <button onclick="removeSelectedImage()" class="text-gray-400 hover:text-red-500 p-1 text-base">
+                <i class="fa-solid fa-circle-xmark"></i>
+            </button>
+        </div>
+
         <!-- 快捷功能标签 -->
         <div class="flex space-x-2 mb-2 overflow-x-auto pb-1 text-xs">
             <button onclick="quickFill('解方程：2x^2 - 4x - 6 = 0，求根并给出推导过程')" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap hover:bg-gray-200">
                 📐 解二次方程
             </button>
-            <button onclick="quickFill('记一下：明天上午交数学作业')" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap hover:bg-gray-200">
+            <button onclick="quickFill('记一下：明天下午交数学作业')" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap hover:bg-gray-200">
                 📝 记待办
             </button>
             <button onclick="quickFill('我的备忘')" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap hover:bg-gray-200">
-                📋 查备忘录
+                📋 查备忘
             </button>
         </div>
 
+        <!-- 输入控件栏 -->
         <div class="flex items-end space-x-2">
-            <textarea id="user-input" rows="1" placeholder="发消息，问数学题或记备忘..." 
+            <!-- 隐藏的图片选择 input (支持相册与相机) -->
+            <input type="file" id="image-file-input" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
+            
+            <!-- 上传图片按钮 -->
+            <button onclick="document.getElementById('image-file-input').click()" class="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 active:scale-95 transition flex items-center justify-center shadow-sm" title="上传题目图片 / 拍照">
+                <i class="fa-solid fa-camera text-base"></i>
+            </button>
+
+            <!-- 文本输入框 -->
+            <textarea id="user-input" rows="1" placeholder="发消息、问数学题、或直接粘贴(Ctrl+V)截图..." 
                 class="flex-1 max-h-32 p-2.5 text-sm bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white resize-none"
                 onkeydown="handleKey(event)"></textarea>
+            
+            <!-- 发送按钮 -->
             <button id="send-btn" onclick="sendMessage()" class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 active:scale-95 transition shadow-sm">
                 <i class="fa-solid fa-arrow-up"></i>
             </button>
         </div>
+
         <div class="text-[10px] text-gray-400 text-center mt-1.5 flex justify-between px-1">
-            <span>用户标识: <strong id="user-tag" class="text-gray-500">加载中</strong></span>
-            <span>按 Enter 发送</span>
+            <span>用户专属ID: <strong id="user-tag" class="text-gray-500">加载中</strong></span>
+            <span>按 Enter 发送 · 支持截图粘贴</span>
         </div>
     </footer>
 
@@ -130,7 +164,7 @@
         }
         document.getElementById("user-tag").innerText = userId;
 
-        // 模型选择记忆
+        // 模型选择持久化记忆
         const savedModel = localStorage.getItem("wechat_agent_model");
         if (savedModel && document.getElementById("model-select")) {
             document.getElementById("model-select").value = savedModel;
@@ -142,6 +176,24 @@
         const chatContainer = document.getElementById("chat-container");
         const userInput = document.getElementById("user-input");
         const sendBtn = document.getElementById("send-btn");
+
+        // 待发送图片数据
+        let currentImageData = null; // { mime_type: "...", data: "base64..." }
+
+        // 页面打开时自动加载历史聊天记录
+        window.addEventListener("DOMContentLoaded", loadChatHistory);
+
+        // 监听全局 Ctrl+V 粘贴图片
+        window.addEventListener("paste", function(e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.type.indexOf("image") !== -1) {
+                    const file = item.getAsFile();
+                    processImageFile(file);
+                    break;
+                }
+            }
+        });
 
         function handleKey(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -155,14 +207,76 @@
             sendMessage();
         }
 
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processImageFile(file);
+            }
+        }
+
+        function processImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    // 客户端自动压缩，最大限制 1200px 保证上传秒级极速
+                    const canvas = document.createElement("canvas");
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 1200;
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
+                    const base64Data = compressedBase64.split(",")[1];
+
+                    currentImageData = {
+                        mime_type: "image/jpeg",
+                        data: base64Data,
+                        previewUrl: compressedBase64
+                    };
+
+                    // 显示预览卡片
+                    document.getElementById("image-preview").src = compressedBase64;
+                    document.getElementById("image-preview-container").classList.remove("hidden");
+                    document.getElementById("image-preview-container").classList.add("flex");
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeSelectedImage() {
+            currentImageData = null;
+            document.getElementById("image-file-input").value = "";
+            document.getElementById("image-preview-container").classList.add("hidden");
+            document.getElementById("image-preview-container").classList.remove("flex");
+        }
+
         async function sendMessage() {
             const text = userInput.value.trim();
-            if (!text) return;
+            const hasImage = currentImageData !== null;
+            if (!text && !hasImage) return;
 
-            // 1. 渲染用户气泡
-            appendMessage("user", text);
+            // 1. 渲染用户气泡 (附带缩略图预览)
+            appendMessage("user", text || "请解这道题目", hasImage ? currentImageData.previewUrl : null);
+            
             userInput.value = "";
             userInput.style.height = 'auto';
+
+            const payloadImage = hasImage ? { mime_type: currentImageData.mime_type, data: currentImageData.data } : null;
+            removeSelectedImage(); // 清空输入区已选图片
 
             // 2. 渲染正在思考占位符
             const loadingId = appendLoading();
@@ -173,11 +287,15 @@
                 const resp = await fetch("/api/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ user_id: userId, message: text, model: selectedModel })
+                    body: JSON.stringify({ 
+                        user_id: userId, 
+                        message: text, 
+                        model: selectedModel,
+                        image: payloadImage
+                    })
                 });
                 const data = await resp.json();
                 
-                // 移除 loading
                 document.getElementById(loadingId)?.remove();
 
                 if (data.reply) {
@@ -193,18 +311,26 @@
             }
         }
 
-        function appendMessage(role, text) {
+        function appendMessage(role, text, imagePreviewUrl = null) {
             const msgDiv = document.createElement("div");
             msgDiv.className = role === "user" ? "flex justify-end" : "flex justify-start";
 
             const bubble = document.createElement("div");
             if (role === "user") {
                 bubble.className = "max-w-[85%] bg-emerald-600 text-white p-3 rounded-2xl rounded-tr-sm text-sm shadow-sm whitespace-pre-wrap leading-relaxed";
-                bubble.innerText = text;
+                if (imagePreviewUrl) {
+                    const imgEl = document.createElement("img");
+                    imgEl.src = imagePreviewUrl;
+                    imgEl.className = "max-w-xs max-h-48 rounded-lg mb-2 object-cover border border-emerald-500";
+                    bubble.appendChild(imgEl);
+                }
+                const textSpan = document.createElement("div");
+                textSpan.innerText = text;
+                bubble.appendChild(textSpan);
             } else {
                 bubble.className = "max-w-[90%] bg-white text-gray-800 p-3.5 rounded-2xl rounded-tl-sm text-sm shadow-sm border border-gray-100 leading-relaxed message-content";
                 bubble.innerHTML = marked.parse(text);
-                // 渲染公式
+                // KaTeX 数学公式渲染
                 renderMathInElement(bubble, {
                     delimiters: [
                         {left: '$$', right: '$$', display: true},
@@ -231,12 +357,43 @@
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce"></span>
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style="animation-delay: 0.2s"></span>
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style="animation-delay: 0.4s"></span>
-                    <span class="ml-1 text-gray-500">Gemini 正在深度推导演算...</span>
+                    <span class="ml-1 text-gray-500">Gemini 正在识图推导思考...</span>
                 </div>
             `;
             chatContainer.appendChild(div);
             chatContainer.scrollTop = chatContainer.scrollHeight;
             return id;
+        }
+
+        // 加载历史对话记忆
+        async function loadChatHistory() {
+            try {
+                const res = await fetch(`/api/history?user_id=${userId}`);
+                const data = await res.json();
+                if (data.history && data.history.length > 0) {
+                    data.history.forEach(item => {
+                        appendMessage(item.role, item.content);
+                    });
+                }
+            } catch(e) {
+                console.log("加载历史会话失败:", e);
+            }
+        }
+
+        // 清空历史对话记忆 (新建对话)
+        async function confirmClearHistory() {
+            if (confirm("确定要清空历史对话记忆吗？这将开启一个全新的对话。")) {
+                await fetch(`/api/clear_history?user_id=${userId}`, { method: "POST" });
+                // 清空界面消息保留欢迎卡片
+                chatContainer.innerHTML = `
+                    <div id="welcome-card" class="flex justify-start">
+                        <div class="max-w-[88%] bg-white p-3.5 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100 text-gray-800 text-sm leading-relaxed">
+                            <p class="font-semibold text-emerald-600 mb-1">✨ 已开启全新对话！</p>
+                            <p class="text-xs text-gray-500">历史记忆已重置，你可以随时发送文字或上传新题目图片。</p>
+                        </div>
+                    </div>
+                `;
+            }
         }
 
         async function toggleNotesDrawer() {
@@ -251,12 +408,12 @@
 
         async function loadNotes() {
             const listEl = document.getElementById("notes-list");
-            listEl.innerHTML = '<p class="text-xs text-gray-400 text-center py-8">正在刷新...</p>';
+            listEl.innerHTML = '<p class="text-xs text-gray-400 text-center py-8">正在刷新备忘...</p>';
             try {
                 const res = await fetch(`/api/notes?user_id=${userId}`);
                 const data = await res.json();
                 if (!data.notes || data.notes.length === 0) {
-                    listEl.innerHTML = '<p class="text-xs text-gray-400 text-center py-8">你还没有任何备忘或待办哦</p>';
+                    listEl.innerHTML = '<p class="text-xs text-gray-400 text-center py-8">你还没有任何备忘事项哦</p>';
                     return;
                 }
                 listEl.innerHTML = "";
@@ -269,7 +426,7 @@
                             <p class="text-gray-800 font-medium text-sm">${n.content}</p>
                             <span class="text-[10px] text-gray-400">${n.created_at}</span>
                         </div>
-                        <button onclick="deleteNote(${n.id})" class="text-gray-300 hover:text-red-500 transition p-1">
+                        <button onclick="deleteNote(${n.id})" class="text-gray-300 hover:text-red-500 transition p-1" title="删除">
                             <i class="fa-solid fa-trash-can"></i>
                         </button>
                     `;

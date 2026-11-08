@@ -104,8 +104,8 @@ def save_chat_message(user_id: str, role: str, content: str):
     conn.commit()
     conn.close()
 
-def get_chat_history(user_id: str, limit: int = 6) -> List[Dict[str, str]]:
-    """获取指定用户的最近聊天记录"""
+def get_chat_history(user_id: str, limit: int = 8) -> List[Dict[str, str]]:
+    """获取指定用户的最近聊天记录 (供大模型上下文推理)"""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
@@ -114,6 +114,30 @@ def get_chat_history(user_id: str, limit: int = 6) -> List[Dict[str, str]]:
     )
     rows = cursor.fetchall()
     conn.close()
-    # 恢复正序
     rows.reverse()
     return [{"role": r[0], "content": r[1]} for r in rows]
+
+def get_display_history(user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """获取前端渲染展示的历史记录清单"""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, role, content, created_at FROM chat_history WHERE user_id = ? ORDER BY id ASC LIMIT ?",
+        (user_id, limit)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [
+        {"id": r[0], "role": r[1], "content": r[2], "created_at": r[3]}
+        for r in rows
+    ]
+
+def clear_chat_history(user_id: str) -> bool:
+    """清空指定用户的全部聊天记忆 (新建对话)"""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM chat_history WHERE user_id = ?", (user_id,))
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0

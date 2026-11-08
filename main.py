@@ -28,27 +28,45 @@ def index_page():
             return f.read()
     return "<h1>前端页面 index.html 正在准备中...</h1>"
 
+from typing import Optional, Dict, Any
+
 # 2. 网页端对话 API
 class ChatRequest(BaseModel):
     user_id: str
     message: str
+    model: Optional[str] = None
+    image: Optional[Dict[str, str]] = None
 
 @app.post("/api/chat")
 async def api_chat(req: ChatRequest):
     try:
         user_id = req.user_id.strip() or "guest_user"
         message = req.message.strip()
-        if not message:
-            return {"reply": "请输入您的问题或想要记录的备忘。"}
+        model_name = req.model.strip() if req.model else None
+        image_data = req.image if (req.image and req.image.get("data")) else None
 
-        print(f"💬 [Web 访客 {user_id}]: {message}")
-        reply = run_agent(user_id=user_id, user_message=message)
+        if not message and not image_data:
+            return {"reply": "请输入您的问题或上传题目图片。"}
+
+        print(f"💬 [Web 访客 {user_id} 模型 {model_name} 图片:{bool(image_data)}]: {message[:30]}")
+        reply = run_agent(user_id=user_id, user_message=message, model_name=model_name, image_data=image_data)
         return {"reply": reply}
     except Exception as e:
         print(f"❌ api_chat 处理异常: {e}")
         return {"reply": f"助手在处理请求时遇到小问题: {str(e)}"}
 
-# 3. 备忘录清单 API (多用户隔离)
+# 3. 聊天记录与持久化记忆 API
+@app.get("/api/history")
+def api_get_history(user_id: str = Query(...)):
+    history = db.get_display_history(user_id=user_id, limit=60)
+    return {"history": history}
+
+@app.post("/api/clear_history")
+def api_clear_history(user_id: str = Query(...)):
+    success = db.clear_chat_history(user_id=user_id)
+    return {"success": success}
+
+# 4. 备忘录清单 API (多用户隔离)
 @app.get("/api/notes")
 def api_get_notes(user_id: str = Query(...)):
     notes = db.get_notes(user_id=user_id, limit=30)
