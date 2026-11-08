@@ -35,14 +35,18 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/chat")
 async def api_chat(req: ChatRequest):
-    user_id = req.user_id.strip() or "guest_user"
-    message = req.message.strip()
-    if not message:
-        return {"reply": "请输入您的问题或想要记录的备忘。"}
+    try:
+        user_id = req.user_id.strip() or "guest_user"
+        message = req.message.strip()
+        if not message:
+            return {"reply": "请输入您的问题或想要记录的备忘。"}
 
-    print(f"💬 [Web 访客 {user_id}]: {message}")
-    reply = run_agent(user_id=user_id, user_message=message)
-    return {"reply": reply}
+        print(f"💬 [Web 访客 {user_id}]: {message}")
+        reply = run_agent(user_id=user_id, user_message=message)
+        return {"reply": reply}
+    except Exception as e:
+        print(f"❌ api_chat 处理异常: {e}")
+        return {"reply": f"助手在处理请求时遇到小问题: {str(e)}"}
 
 # 3. 备忘录清单 API (多用户隔离)
 @app.get("/api/notes")

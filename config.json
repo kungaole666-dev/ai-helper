@@ -8,7 +8,7 @@
     "KF_SECRET": "",
     "OPEN_KFID": "",
 
-    "GEMINI_API_KEY": "AQ.Ab8RN6IHfo-95qMcYrGJU6f6K3B9MVPQMzj0PrMhTrbIIuVKog",
+    "GEMINI_API_KEY": "",
     "GEMINI_MODEL": "gemini-3-flash-preview",
     "PROXY": "",
     "TAVILY_API_KEY": "",
