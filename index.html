@@ -127,7 +127,7 @@
                 AI
             </div>
 
-            <!-- 新建对话按钮 (显眼易用) -->
+            <!-- 新建对话按钮 -->
             <button onclick="startNewSession()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-white transition flex items-center space-x-1 shadow-sm shrink-0" title="新建对话">
                 <i class="fa-solid fa-plus text-[10px]"></i>
                 <span>新建对话</span>
@@ -136,8 +136,8 @@
             <!-- 模型下拉列表 -->
             <div class="relative hidden sm:block">
                 <select id="model-select" onchange="onModelChange()" class="text-xs bg-zinc-50 border border-zinc-200 text-zinc-800 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-zinc-400 font-medium cursor-pointer appearance-none">
-                    <option value="gemini-3.8-flash" selected>Gemini 3.8 Flash</option>
-                    <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
+                    <option value="gemini-3.5-flash-lite" selected>Gemini 3.5 Flash Lite (极速)</option>
+                    <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
                     <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
                     <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
                 </select>
@@ -177,8 +177,8 @@
     <div class="sm:hidden px-3 py-1.5 bg-zinc-100/60 border-b border-zinc-200/60 flex items-center justify-between">
         <span class="text-[11px] text-zinc-500">当前模型:</span>
         <select id="model-select-mobile" onchange="onMobileModelChange()" class="text-xs bg-white border border-zinc-200 text-zinc-800 rounded px-2 py-0.5 font-medium">
-            <option value="gemini-3.8-flash" selected>Gemini 3.8 Flash</option>
-            <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
+            <option value="gemini-3.5-flash-lite" selected>Gemini 3.5 Flash Lite (极速)</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
             <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
             <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
         </select>
@@ -330,7 +330,7 @@
         // 1. 全局状态
         let currentUserId = localStorage.getItem("chat_user_id") || "User_1";
         let currentSessionId = localStorage.getItem("chat_session_id") || "default";
-        let currentModel = localStorage.getItem("chat_model") || "gemini-3.8-flash";
+        let currentModel = localStorage.getItem("chat_model") || "gemini-3.5-flash-lite";
         let pendingImageData = null;
         let pendingFileData = null;
         let isSending = false;
@@ -581,7 +581,6 @@
             if (emptyState) emptyState.remove();
 
             const timeStr = timestamp ? (timestamp.length > 16 ? timestamp.substring(11, 16) : timestamp) : "";
-
             const row = document.createElement("div");
             row.className = role === "user" ? "flex justify-end" : "flex justify-start";
 
@@ -645,6 +644,68 @@
             return row;
         }
 
+        // 创建实时打字机流式输出组件 (毫秒级响应)
+        function createStreamingMessageUI() {
+            const container = document.getElementById("chat-container");
+            const emptyState = document.getElementById("empty-state");
+            if (emptyState) emptyState.remove();
+
+            const row = document.createElement("div");
+            row.className = "flex justify-start";
+            row.innerHTML = `
+                <div class="flex flex-col items-start max-w-[95%] sm:max-w-[85%] w-full">
+                    <div class="bg-white border border-zinc-200/90 text-zinc-800 text-sm px-4 sm:px-5 py-3.5 rounded-2xl rounded-tl-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] prose-msg leading-relaxed break-words w-full select-text">
+                        <span class="inline-block w-1.5 h-3.5 bg-zinc-400 animate-pulse align-middle"></span>
+                    </div>
+                    <div class="flex items-center space-x-2 mt-1 ml-1 text-[10px] text-zinc-400">
+                        <span class="time-label">${new Date().toLocaleTimeString().substring(0, 5)}</span>
+                        <button onclick="copyRawText(this)" class="hover:text-zinc-600 transition" title="复制回答">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(row);
+            scrollToBottom();
+
+            const contentDiv = row.querySelector(".prose-msg");
+            return {
+                row: row,
+                update: function(text) {
+                    contentDiv.innerHTML = marked.parse(text || "") + '<span class="inline-block w-1.5 h-3.5 bg-zinc-400 animate-pulse ml-0.5 align-middle"></span>';
+                    scrollToBottom();
+                },
+                finalize: function(text) {
+                    contentDiv.innerHTML = marked.parse(text || "");
+                    const preElements = row.querySelectorAll("pre");
+                    preElements.forEach(pre => {
+                        const copyBtn = document.createElement("button");
+                        copyBtn.className = "copy-code-btn";
+                        copyBtn.innerText = "复制";
+                        copyBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            const code = pre.querySelector("code") ? pre.querySelector("code").innerText : pre.innerText;
+                            navigator.clipboard.writeText(code);
+                            copyBtn.innerText = "已复制";
+                            setTimeout(() => copyBtn.innerText = "复制", 1500);
+                        };
+                        pre.appendChild(copyBtn);
+                    });
+
+                    renderMathInElement(contentDiv, {
+                        delimiters: [
+                            { left: "$$", right: "$$", display: true },
+                            { left: "$", right: "$", display: false },
+                            { left: "\\(", right: "\\)", display: false },
+                            { left: "\\[", right: "\\]", display: true }
+                        ],
+                        throwOnError: false
+                    });
+                    scrollToBottom();
+                }
+            };
+        }
+
         function copyRawText(btn) {
             const card = btn.closest(".flex-col").querySelector(".prose-msg");
             if (card) {
@@ -666,7 +727,7 @@
             );
         }
 
-        // 7. 发送消息
+        // 7. 发送消息 (全面升级为实时流式 SSE 打字机输出)
         async function sendMessage() {
             if (isSending) return;
             const input = document.getElementById("user-input");
@@ -693,17 +754,9 @@
             const sendFile = pendingFileData;
             clearAttachment();
 
-            // 占位等待指示器
-            const loadingRow = document.createElement("div");
-            loadingRow.className = "flex justify-start";
-            loadingRow.innerHTML = `
-                <div class="bg-white border border-zinc-200/90 text-zinc-400 text-xs px-3.5 py-2.5 rounded-2xl rounded-tl-xs flex items-center space-x-2">
-                    <i class="fa-solid fa-circle-notch fa-spin"></i>
-                    <span>正在处理...</span>
-                </div>
-            `;
-            document.getElementById("chat-container").appendChild(loadingRow);
-            scrollToBottom();
+            // 创建实时打字机流式气泡
+            const msgObj = createStreamingMessageUI();
+            let accumulatedText = "";
 
             try {
                 const payload = {
@@ -715,28 +768,53 @@
                     file: sendFile
                 };
 
-                const res = await fetch("/api/chat", {
+                const res = await fetch("/api/chat/stream", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
                 });
 
-                loadingRow.remove();
+                if (res.ok && res.body) {
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder("utf-8");
+                    let buffer = "";
 
-                if (res.ok) {
-                    const data = await res.json();
-                    appendMessageToUI("assistant", data.reply || "", new Date().toLocaleTimeString().substring(0, 5));
-                    // 刷新会话标题与备忘录
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split("\n");
+                        buffer = lines.pop(); // 保留不完整行
+
+                        for (const line of lines) {
+                            if (!line.trim()) continue;
+                            try {
+                                const parsed = JSON.parse(line);
+                                if (parsed.text) {
+                                    accumulatedText += parsed.text;
+                                    msgObj.update(accumulatedText);
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                    if (buffer.trim()) {
+                        try {
+                            const parsed = JSON.parse(buffer);
+                            if (parsed.text) {
+                                accumulatedText += parsed.text;
+                            }
+                        } catch (e) {}
+                    }
+                    msgObj.finalize(accumulatedText);
                     loadSessionsList();
                     if (text.startsWith("记一下") || text.startsWith("帮我记") || text.startsWith("待办") || text.startsWith("备忘")) {
                         loadNotes();
                     }
                 } else {
-                    appendMessageToUI("assistant", `请求失败 (${res.status})，请重试。`);
+                    msgObj.finalize("请求失败，请稍后重试。");
                 }
             } catch (e) {
-                loadingRow.remove();
-                appendMessageToUI("assistant", `网络通信异常: ${e.message}`);
+                msgObj.finalize(`通信异常: ${e.message}`);
             } finally {
                 isSending = false;
                 document.getElementById("send-btn").disabled = false;

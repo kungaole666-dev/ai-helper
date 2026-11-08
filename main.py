@@ -3,15 +3,16 @@ import os
 import xml.etree.ElementTree as ET
 import threading
 from fastapi import FastAPI, Request, Query
-from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
+import json
 
 sys.stdout.reconfigure(encoding='utf-8')
 
 from config import cfg
 from wxcrypt import WXBizMsgCrypt
 from wechat_client import wx_client
-from agent import run_agent
+from agent import run_agent, stream_agent
 import db
 
 app = FastAPI(title="AI 智能解题与记事助理")
@@ -40,7 +41,7 @@ class ChatRequest(BaseModel):
     file: Optional[Dict[str, Any]] = None
 
 @app.post("/api/chat")
-async def api_chat(req: ChatRequest):
+def api_chat(req: ChatRequest):
     try:
         user_id = req.user_id.strip() or "guest_user"
         session_id = req.session_id.strip() if req.session_id else "default"
@@ -58,6 +59,34 @@ async def api_chat(req: ChatRequest):
     except Exception as e:
         print(f"❌ api_chat 处理异常: {e}")
         return {"reply": f"助手在处理请求时遇到小问题: {str(e)}"}
+
+@app.post("/api/chat/stream")
+def api_chat_stream(req: ChatRequest):
+    """流式返回接口 (SSE 打字机输出，首字秒级返回)"""
+    try:
+        user_id = req.user_id.strip() or "guest_user"
+        session_id = req.session_id.strip() if req.session_id else "default"
+        message = req.message.strip()
+        model_name = req.model.strip() if req.model else None
+        image_data = req.image if (req.image and req.image.get("data")) else None
+        file_data = req.file if (req.file and (req.file.get("data") or req.file.get("text_content"))) else None
+
+        if not message and not image_data and not file_data:
+            def empty_gen():
+                yield json.dumps({"text": "请输入您的问题、上传图片或拖入文件。"}, ensure_ascii=False) + "\n"
+            return StreamingResponse(empty_gen(), media_type="text/event-stream")
+
+        print(f"⚡ [Stream 访客 {user_id} 会话 {session_id} 模型 {model_name}]: {message[:30]}")
+        
+        def stream_gen():
+            for chunk in stream_agent(user_id=user_id, user_message=message, model_name=model_name, image_data=image_data, file_data=file_data, session_id=session_id):
+                yield chunk
+
+        return StreamingResponse(stream_gen(), media_type="text/event-stream")
+    except Exception as e:
+        def err_gen():
+            yield json.dumps({"text": f"请求异常: {str(e)}"}, ensure_ascii=False) + "\n"
+        return StreamingResponse(err_gen(), media_type="text/event-stream")
 
 # 3. 聊天记录与持久化记忆 API
 @app.get("/api/sessions")
