@@ -241,7 +241,7 @@
 
             <!-- 用户信息与退出登录菜单 -->
             <div class="relative">
-                <button onclick="toggleUserDropdown()" id="account-btn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition flex items-center space-x-1.5" title="账户">
+                <button onclick="onAccountBtnClick()" id="account-btn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition flex items-center space-x-1.5" title="账户">
                     <i class="fa-regular fa-circle-user text-zinc-600 dark:text-zinc-300"></i>
                     <span id="account-name-display" class="max-w-[70px] sm:max-w-[90px] truncate">未登录</span>
                     <i class="fa-solid fa-chevron-down text-[9px] text-zinc-400"></i>
@@ -417,14 +417,19 @@
         </div>
     </div>
 
-    <!-- 账户登录 / 注册模态弹窗 (强制密码保护) -->
+    <!-- 账户登录 / 注册模态弹窗 (强制密码保护，支持随时关闭与免登录体验) -->
     <div id="auth-modal" style="display: none;" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm p-6 space-y-5">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm p-6 space-y-4 relative">
+            <!-- 弹窗右上角随时关闭按钮 -->
+            <button type="button" onclick="hideAuthModal()" class="absolute top-4 right-4 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 p-1 transition" title="关闭">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+
             <div class="text-center space-y-1">
                 <div class="w-10 h-10 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center font-bold text-sm mx-auto shadow-sm">
                     AI
                 </div>
-                <h3 class="font-bold text-base text-zinc-900 dark:text-zinc-100 pt-1" id="auth-title">账户登录</h3>
+                <h3 class="font-bold text-base text-zinc-900 dark:text-zinc-100 pt-1" id="auth-title">账户登录与注册</h3>
                 <p class="text-xs text-zinc-400 dark:text-zinc-500" id="auth-subtitle">输入账号与密码进入，新用户将自动注册</p>
             </div>
 
@@ -447,11 +452,18 @@
                 </div>
 
                 <div id="auth-error-msg" class="text-xs text-red-500 hidden pt-1"></div>
+                <!-- 密码重置快捷按钮 (若密码不对直接重置进入，绝不卡死用户) -->
+                <button type="button" id="reset-pwd-btn" onclick="forceResetPassword()" class="hidden w-full text-center py-1 text-xs text-amber-600 dark:text-amber-400 hover:underline font-medium">
+                    忘记此账号密码？点击【重置为当前密码并直接进入】
+                </button>
             </div>
 
-            <div class="pt-1">
+            <div class="pt-1 space-y-2">
                 <button type="button" onclick="submitAuthForm()" id="auth-submit-btn" class="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-semibold rounded-xl transition shadow-sm">
-                    登录
+                    登录 / 进入
+                </button>
+                <button type="button" onclick="hideAuthModal()" class="w-full text-center text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 py-1 transition">
+                    暂不登录，直接使用 AI
                 </button>
             </div>
         </div>
@@ -614,11 +626,24 @@
             if (notice) notice.classList.add("hidden");
         }
 
-        // 3. 鉴权与密码登录逻辑 (解决 Render 容器休眠与清空 SQLite 造成的掉登录问题)
+        // 3. 鉴权与密码登录逻辑 (支持私密账户隔离，同时支持免登录无感访客体验)
+        function getEffectiveToken() {
+            if (authToken) return authToken;
+            let gToken = localStorage.getItem("guest_token");
+            if (!gToken) {
+                gToken = "guest_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8);
+                localStorage.setItem("guest_token", gToken);
+            }
+            return gToken;
+        }
+
         async function checkAuthStatus() {
-            // 如果本地完全没有任何登录过的标记
+            // 如果本地未登录过，直接进入访客模式，绝不弹窗打扰
             if (!authToken && (!authUser || !authKey)) {
-                showAuthModal();
+                updateUserUI();
+                loadSessionsList();
+                loadChatHistory();
+                loadNotes();
                 return;
             }
 
@@ -640,7 +665,7 @@
                             return;
                         }
                     } else if (res.status >= 500 && authRetryCount < 8) {
-                        // Render 容器可能正在从休眠中唤醒 (冷启动需 15~30s)，严禁清除 Token！
+                        // Render 容器可能正在从休眠中唤醒 (冷启动需 15~30s)，保留 Token
                         authRetryCount++;
                         showWakeupNotice("云端服务正在唤醒中，已保留登录状态...");
                         authRetryTimer = setTimeout(checkAuthStatus, 2500);
@@ -648,7 +673,6 @@
                     }
                 }
             } catch (e) {
-                // 网络异常或冷启动连接中，自动重试，严禁清空本地状态
                 if (authRetryCount < 8) {
                     authRetryCount++;
                     showWakeupNotice("正在连接云端服务 (唤醒中)...");
@@ -657,9 +681,7 @@
                 }
             }
 
-            // 若走到这里，说明服务端连接成功，但返回了 authenticated: false
-            // 这通常是 Render 容器休眠/重启清空了临时 SQLite 文件系统导致的
-            // 此时前端直接凭借本地安全凭证 authUser + authKey 自动静默恢复账户！
+            // 若 token 失效，尝试用 authUser + authKey 自动恢复
             if (authUser && authKey) {
                 try {
                     showWakeupNotice("正在自动同步账户...");
@@ -677,7 +699,6 @@
                             localStorage.setItem("auth_token", authToken);
                             hideAuthModal();
                             updateUserUI();
-                            // 同步恢复本地缓存的历史会话和记录
                             restoreCachedDataToServer();
                             loadSessionsList();
                             loadChatHistory();
@@ -691,7 +712,12 @@
             }
 
             hideWakeupNotice();
-            showAuthModal();
+            // 若恢复未成功，平滑降级为访客状态，绝不强制弹窗遮罩阻断
+            authToken = "";
+            currentUserId = "";
+            updateUserUI();
+            loadSessionsList();
+            loadChatHistory();
         }
 
         // 本地会话与消息备份，确保即便云端数据库重启被清空也能毫秒级原地复原
@@ -719,7 +745,6 @@
         }
 
         function showAuthModal() {
-            // 如果已在会话登录中，绝不重复弹窗打扰！
             if (authToken && currentUserId) return;
             const modal = document.getElementById("auth-modal");
             if (modal) {
@@ -751,6 +776,9 @@
             const title = document.getElementById("auth-title");
             const submitBtn = document.getElementById("auth-submit-btn");
             const errorMsg = document.getElementById("auth-error-msg");
+            errorMsg.classList.add("hidden");
+            const resetBtn = document.getElementById("reset-pwd-btn");
+            if (resetBtn) resetBtn.classList.add("hidden");
             errorMsg.classList.add("hidden");
 
             if (mode === "login") {
@@ -815,6 +843,8 @@
 
                     passwordInput.value = "";
                     errorMsg.classList.add("hidden");
+                    const resetBtn = document.getElementById("reset-pwd-btn");
+                    if (resetBtn) resetBtn.classList.add("hidden");
                     hideAuthModal();
                     updateUserUI();
                     loadSessionsList();
@@ -823,6 +853,10 @@
                 } else {
                     errorMsg.innerText = data.message || "登录失败，请检查账户名与密码";
                     errorMsg.classList.remove("hidden");
+                    const resetBtn = document.getElementById("reset-pwd-btn");
+                    if (resetBtn && data.message && data.message.includes("不正确")) {
+                        resetBtn.classList.remove("hidden");
+                    }
                 }
             } catch (e) {
                 errorMsg.innerText = "网络通信异常: " + e.message;
@@ -833,11 +867,80 @@
             }
         }
 
+        async function forceResetPassword() {
+            const usernameInput = document.getElementById("auth-username");
+            const passwordInput = document.getElementById("auth-password");
+            const errorMsg = document.getElementById("auth-error-msg");
+            const resetBtn = document.getElementById("reset-pwd-btn");
+            const username = usernameInput.value.trim();
+            const newPassword = passwordInput.value.trim();
+
+            if (!username) {
+                errorMsg.innerText = "请输入要重置的账户名称";
+                errorMsg.classList.remove("hidden");
+                usernameInput.focus();
+                return;
+            }
+            if (!newPassword) {
+                errorMsg.innerText = "请在密码框输入您想要设置的新密码";
+                errorMsg.classList.remove("hidden");
+                passwordInput.focus();
+                return;
+            }
+
+            resetBtn.disabled = true;
+            resetBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i> 重置中...';
+
+            try {
+                const res = await fetch("/api/auth/reset_password", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, new_password: newPassword })
+                });
+                const data = await res.json();
+                if (data.success && data.token) {
+                    authToken = data.token;
+                    currentUserId = data.username;
+                    authUser = data.username;
+                    authKey = data.user_key || "";
+                    localStorage.setItem("auth_token", authToken);
+                    localStorage.setItem("auth_user", authUser);
+                    if (authKey) localStorage.setItem("auth_key", authKey);
+
+                    passwordInput.value = "";
+                    errorMsg.classList.add("hidden");
+                    resetBtn.classList.add("hidden");
+                    hideAuthModal();
+                    updateUserUI();
+                    loadSessionsList();
+                    loadChatHistory();
+                    loadNotes();
+                } else {
+                    errorMsg.innerText = data.message || "重置失败";
+                    errorMsg.classList.remove("hidden");
+                }
+            } catch (e) {
+                errorMsg.innerText = "通信异常: " + e.message;
+                errorMsg.classList.remove("hidden");
+            } finally {
+                resetBtn.disabled = false;
+                resetBtn.innerHTML = "忘记此账号密码？点击【重置为当前密码并直接进入】";
+            }
+        }
+
         function updateUserUI() {
             const display = document.getElementById("account-name-display");
             const dropdownTip = document.getElementById("dropdown-username-tip");
-            if (display) display.innerText = currentUserId || "未登录";
-            if (dropdownTip) dropdownTip.innerText = `账户: ${currentUserId}`;
+            if (display) display.innerText = currentUserId || "登录 / 注册";
+            if (dropdownTip) dropdownTip.innerText = currentUserId ? `账户: ${currentUserId}` : "未登录 (访客模式)";
+        }
+
+        function onAccountBtnClick() {
+            if (authToken && currentUserId) {
+                toggleUserDropdown();
+            } else {
+                showAuthModal();
+            }
         }
 
         function toggleUserDropdown() {
@@ -876,15 +979,6 @@
             showEmptyState();
             document.getElementById("sessions-list-container").innerHTML = '<div class="text-center text-xs text-zinc-400 py-10">暂无历史对话</div>';
             document.getElementById("notes-list-container").innerHTML = '<div class="text-center text-xs text-zinc-400 py-10">暂无备忘事项</div>';
-            showAuthModal();
-        }
-            authToken = "";
-            currentUserId = "";
-            updateUserUI();
-            showEmptyState();
-            document.getElementById("sessions-list-container").innerHTML = '<div class="text-center text-xs text-zinc-400 py-10">暂无历史对话</div>';
-            document.getElementById("notes-list-container").innerHTML = '<div class="text-center text-xs text-zinc-400 py-10">暂无备忘事项</div>';
-            showAuthModal();
         }
 
         // 4. 模型设置
@@ -931,9 +1025,9 @@
         }
 
         async function loadSessionsList() {
-            if (!authToken) return;
+            const tokenToUse = getEffectiveToken();
             try {
-                const res = await fetch(`/api/sessions?token=${encodeURIComponent(authToken)}`);
+                const res = await fetch(`/api/sessions?token=${encodeURIComponent(tokenToUse)}`);
                 if (res.ok) {
                     const data = await res.json();
                     const sessList = data.sessions || [];
@@ -986,7 +1080,7 @@
                 const res = await fetch("/api/sessions/rename", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ token: authToken, session_id: sessionId, title: newTitle.trim() })
+                    body: JSON.stringify({ token: getEffectiveToken(), session_id: sessionId, title: newTitle.trim() })
                 });
                 if (res.ok) {
                     loadSessionsList();
@@ -1006,7 +1100,7 @@
         async function deleteSession(sessionId) {
             if (!confirm("确认删除该条历史对话？")) return;
             try {
-                const res = await fetch(`/api/sessions/delete?token=${encodeURIComponent(authToken)}&session_id=${encodeURIComponent(sessionId)}`, { method: "POST" });
+                const res = await fetch(`/api/sessions/delete?token=${encodeURIComponent(getEffectiveToken())}&session_id=${encodeURIComponent(sessionId)}`, { method: "POST" });
                 if (res.ok) {
                     if (currentSessionId === sessionId) {
                         startNewSession();
@@ -1021,7 +1115,7 @@
 
         // 6. 对话历史加载与渲染
         async function loadChatHistory() {
-            if (!authToken) return;
+            const tokenToUse = getEffectiveToken();
             const container = document.getElementById("chat-container");
             container.innerHTML = `
                 <div class="h-full flex items-center justify-center text-zinc-400 text-xs py-10">
@@ -1030,7 +1124,7 @@
             `;
 
             try {
-                const res = await fetch(`/api/history?token=${encodeURIComponent(authToken)}&session_id=${encodeURIComponent(currentSessionId)}`);
+                const res = await fetch(`/api/history?token=${encodeURIComponent(tokenToUse)}&session_id=${encodeURIComponent(currentSessionId)}`);
                 if (res.ok) {
                     const data = await res.json();
                     const history = data.history || [];
@@ -1112,7 +1206,7 @@
         async function confirmClearCurrentHistory() {
             if (!confirm(`确认清空当前对话的消息记录？`)) return;
             try {
-                const res = await fetch(`/api/clear_history?token=${encodeURIComponent(authToken)}&session_id=${encodeURIComponent(currentSessionId)}`, { method: "POST" });
+                const res = await fetch(`/api/clear_history?token=${encodeURIComponent(getEffectiveToken())}&session_id=${encodeURIComponent(currentSessionId)}`, { method: "POST" });
                 if (res.ok) {
                     showEmptyState();
                     loadSessionsList();
@@ -1245,7 +1339,7 @@
                 const res = await fetch("/api/chat/delete_last", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ token: authToken, session_id: currentSessionId })
+                    body: JSON.stringify({ token: getEffectiveToken(), session_id: currentSessionId })
                 });
 
                 if (res.ok) {
@@ -1415,15 +1509,13 @@
         }
 
         async function sendMessage() {
-            if (!authToken) {
-                showAuthModal();
-                return;
-            }
             if (isSending) return;
             const input = document.getElementById("user-input");
             const text = input.value.trim();
 
             if (!text && !pendingImageData && !pendingFileData) return;
+
+            const activeToken = getEffectiveToken();
 
             setGeneratingUI(true);
             currentAbortController = new AbortController();
@@ -1450,7 +1542,7 @@
 
             try {
                 const payload = {
-                    token: authToken,
+                    token: activeToken,
                     session_id: currentSessionId,
                     message: text,
                     model: currentModel,
@@ -1686,9 +1778,9 @@
 
         // 11. 对话导出功能 (Markdown 与 PDF 打印)
         async function exportChatToMarkdown() {
-            if (!authToken) return;
+            const tokenToUse = getEffectiveToken();
             try {
-                const res = await fetch(`/api/history?token=${encodeURIComponent(authToken)}&session_id=${encodeURIComponent(currentSessionId)}`);
+                const res = await fetch(`/api/history?token=${encodeURIComponent(tokenToUse)}&session_id=${encodeURIComponent(currentSessionId)}`);
                 if (!res.ok) return;
                 const data = await res.json();
                 const history = data.history || [];
@@ -1719,7 +1811,7 @@
             window.print();
         }
 
-        // 12. 备忘录管理 (强制 Token 鉴权)
+        // 12. 备忘录管理 (支持登录隔离与访客体验)
         function toggleNotesDrawer() {
             const drawer = document.getElementById("notes-drawer");
             drawer.classList.toggle("translate-x-full");
@@ -1729,9 +1821,9 @@
         }
 
         async function loadNotes() {
-            if (!authToken) return;
+            const tokenToUse = getEffectiveToken();
             try {
-                const res = await fetch(`/api/notes?token=${encodeURIComponent(authToken)}`);
+                const res = await fetch(`/api/notes?token=${encodeURIComponent(tokenToUse)}`);
                 if (res.ok) {
                     const data = await res.json();
                     renderNotesList(data.notes || []);
@@ -1769,7 +1861,6 @@
         }
 
         async function quickAddNote() {
-            if (!authToken) return;
             const input = document.getElementById("new-note-input");
             const text = input.value.trim();
             if (!text) return;
@@ -1778,7 +1869,7 @@
                 const res = await fetch("/api/notes/add", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ token: authToken, content: text, category: "备忘" })
+                    body: JSON.stringify({ token: getEffectiveToken(), content: text, category: "备忘" })
                 });
                 if (res.ok) {
                     input.value = "";
@@ -1790,9 +1881,8 @@
         }
 
         async function deleteNote(noteId) {
-            if (!authToken) return;
             try {
-                const res = await fetch(`/api/notes/delete?token=${encodeURIComponent(authToken)}&note_id=${noteId}`, { method: "POST" });
+                const res = await fetch(`/api/notes/delete?token=${encodeURIComponent(getEffectiveToken())}&note_id=${noteId}`, { method: "POST" });
                 if (res.ok) {
                     loadNotes();
                 }

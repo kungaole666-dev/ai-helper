@@ -79,6 +79,17 @@ def api_login(req: AuthRequest):
         return {"success": False, "message": msg}
     return {"success": True, "message": msg, "token": token, "username": req.username.strip(), "user_key": user_key}
 
+class ResetPasswordRequest(BaseModel):
+    username: str
+    new_password: str
+
+@app.post("/api/auth/reset_password")
+def api_reset_password(req: ResetPasswordRequest):
+    success, msg, token, user_key = db.reset_user_password(req.username, req.new_password)
+    if not success:
+        return {"success": False, "message": msg}
+    return {"success": True, "token": token, "username": req.username.strip(), "user_key": user_key}
+
 @app.post("/api/auth/restore")
 def api_restore(req: RestoreRequest):
     success, msg, token = db.restore_user(req.username, req.user_key)
@@ -107,9 +118,25 @@ def api_logout(req: LogoutRequest):
     db.logout_user(req.token)
     return {"success": True}
 
-# 3. 网页端对话 API (强制 Token 认证，数据仅自己可见)
+def resolve_user_id(token: Optional[str]) -> Optional[str]:
+    """根据 Token 解析用户标识，支持已登录用户与免登录访客"""
+    if not token:
+        return None
+    raw_token = token.strip()
+    if not raw_token:
+        return None
+    # 优先数据库验证已注册登录用户
+    user_id = db.verify_token(raw_token)
+    if user_id:
+        return user_id
+    # 若为访客 Token 则直接使用其持久化 guest 标识
+    if raw_token.startswith("guest_"):
+        return raw_token
+    return None
+
+# 3. 网页端对话 API (支持登录私密隔离，同时开放未登录访客体验)
 class ChatRequest(BaseModel):
-    token: str
+    token: Optional[str] = ""
     session_id: Optional[str] = "default"
     message: str
     model: Optional[str] = None
@@ -119,10 +146,7 @@ class ChatRequest(BaseModel):
 @app.post("/api/chat")
 def api_chat(req: ChatRequest):
     try:
-        user_id = db.verify_token(req.token)
-        if not user_id:
-            return {"reply": "未登录或登录已失效，请重新登录账户。"}
-
+        user_id = resolve_user_id(req.token) or f"guest_{req.session_id or 'anon'}"
         session_id = req.session_id.strip() if req.session_id else "default"
         message = req.message.strip()
         model_name = req.model.strip() if req.model else None
@@ -141,14 +165,9 @@ def api_chat(req: ChatRequest):
 
 @app.post("/api/chat/stream")
 def api_chat_stream(req: ChatRequest):
-    """流式返回接口 (SSE 打字机输出，首字秒级返回)"""
+    """流式返回接口 (SSE 打字机输出，免登录即开即用)"""
     try:
-        user_id = db.verify_token(req.token)
-        if not user_id:
-            def unauth_gen():
-                yield json.dumps({"text": "未登录或登录已失效，请重新登录。"}, ensure_ascii=False) + "\n"
-            return StreamingResponse(unauth_gen(), media_type="text/event-stream")
-
+        user_id = resolve_user_id(req.token) or f"guest_{req.session_id or 'anon'}"
         session_id = req.session_id.strip() if req.session_id else "default"
         message = req.message.strip()
         model_name = req.model.strip() if req.model else None
@@ -172,10 +191,10 @@ def api_chat_stream(req: ChatRequest):
             yield json.dumps({"text": f"请求异常: {str(e)}"}, ensure_ascii=False) + "\n"
         return StreamingResponse(err_gen(), media_type="text/event-stream")
 
-# 4. 历史记录与多会话 API (严格鉴权)
+# 4. 历史记录与多会话 API (严格鉴权与访客隔离)
 @app.get("/api/sessions")
 def api_get_sessions(token: str = Query(...)):
-    user_id = db.verify_token(token)
+    user_id = resolve_user_id(token)
     if not user_id:
         return {"sessions": []}
     sessions = db.get_user_sessions(user_id=user_id)
@@ -188,9 +207,9 @@ class RenameSessionRequest(BaseModel):
 
 @app.post("/api/sessions/rename")
 def api_rename_session(req: RenameSessionRequest):
-    user_id = db.verify_token(req.token)
+    user_id = resolve_user_id(req.token)
     if not user_id:
-        return {"success": False, "message": "未登录"}
+        return {"success": False, "message": "未登录或无效标识"}
     success = db.rename_session(user_id=user_id, session_id=req.session_id, new_title=req.title)
     return {"success": success}
 
@@ -200,15 +219,15 @@ class DeleteLastRequest(BaseModel):
 
 @app.post("/api/chat/delete_last")
 def api_delete_last(req: DeleteLastRequest):
-    user_id = db.verify_token(req.token)
+    user_id = resolve_user_id(req.token)
     if not user_id:
-        return {"success": False, "message": "未登录"}
+        return {"success": False, "message": "未登录或无效标识"}
     last_prompt = db.delete_last_assistant_message(user_id=user_id, session_id=req.session_id)
     return {"success": True, "prompt": last_prompt}
 
 @app.post("/api/sessions/delete")
 def api_delete_session(token: str = Query(...), session_id: str = Query(...)):
-    user_id = db.verify_token(token)
+    user_id = resolve_user_id(token)
     if not user_id:
         return {"success": False}
     success = db.delete_session(user_id=user_id, session_id=session_id)
@@ -216,7 +235,7 @@ def api_delete_session(token: str = Query(...), session_id: str = Query(...)):
 
 @app.get("/api/history")
 def api_get_history(token: str = Query(...), session_id: Optional[str] = Query(None)):
-    user_id = db.verify_token(token)
+    user_id = resolve_user_id(token)
     if not user_id:
         return {"history": []}
     history = db.get_display_history(user_id=user_id, session_id=session_id or "default", limit=100)
@@ -224,13 +243,13 @@ def api_get_history(token: str = Query(...), session_id: Optional[str] = Query(N
 
 @app.post("/api/clear_history")
 def api_clear_history(token: str = Query(...), session_id: Optional[str] = Query(None)):
-    user_id = db.verify_token(token)
+    user_id = resolve_user_id(token)
     if not user_id:
         return {"success": False}
     success = db.clear_chat_history(user_id=user_id, session_id=session_id)
     return {"success": success}
 
-# 5. 备忘录清单 API (严格鉴权)
+# 5. 备忘录清单 API
 class NoteAddRequest(BaseModel):
     token: str
     content: str
@@ -238,7 +257,7 @@ class NoteAddRequest(BaseModel):
 
 @app.get("/api/notes")
 def api_get_notes(token: str = Query(...)):
-    user_id = db.verify_token(token)
+    user_id = resolve_user_id(token)
     if not user_id:
         return {"notes": []}
     notes = db.get_notes(user_id=user_id, limit=50)
@@ -246,15 +265,15 @@ def api_get_notes(token: str = Query(...)):
 
 @app.post("/api/notes/add")
 def api_add_note(req: NoteAddRequest):
-    user_id = db.verify_token(req.token)
+    user_id = resolve_user_id(req.token)
     if not user_id:
-        return {"success": False, "message": "未登录"}
+        return {"success": False, "message": "未登录或无效标识"}
     note = db.add_note(user_id=user_id, content=req.content, category=req.category or "备忘")
     return {"success": True, "note": note}
 
 @app.post("/api/notes/delete")
 def api_delete_note(token: str = Query(...), note_id: int = Query(...)):
-    user_id = db.verify_token(token)
+    user_id = resolve_user_id(token)
     if not user_id:
         return {"success": False}
     success = db.delete_note(user_id=user_id, note_id=note_id)

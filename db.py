@@ -141,6 +141,40 @@ def auth_or_register_user(username: str, password: str) -> Tuple[bool, str, Opti
         conn.close()
         return True, "登录成功", token, pwd_hash
 
+def reset_user_password(username: str, new_password: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
+    """重置或强制更新账号密码并直接登录"""
+    username = username.strip()
+    new_password = new_password.strip()
+    if not username:
+        return False, "请输入账户名称", None, None
+    if not new_password:
+        return False, "请输入新密码", None, None
+
+    pwd_hash, salt = hash_password(new_password)
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db_conn()
+    cursor = conn.cursor()
+    cursor.execute("SELECT username FROM users WHERE username = ?", (username,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, salt, created_at) VALUES (?, ?, ?, ?)",
+            (username, pwd_hash, salt, now)
+        )
+    else:
+        cursor.execute(
+            "UPDATE users SET password_hash = ?, salt = ? WHERE username = ?",
+            (pwd_hash, salt, username)
+        )
+    token = secrets.token_hex(24)
+    cursor.execute(
+        "INSERT INTO user_tokens (token, username, created_at) VALUES (?, ?, ?)",
+        (token, username, now)
+    )
+    conn.commit()
+    conn.close()
+    return True, "密码已更新并成功进入", token, pwd_hash
+
 def register_user(username: str, password: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
     return auth_or_register_user(username, password)
 
