@@ -93,7 +93,6 @@
             background: rgba(255,255,255,0.22);
             color: #ffffff;
         }
-        /* 自定义滚动条 */
         ::-webkit-scrollbar {
             width: 5px;
             height: 5px;
@@ -121,20 +120,21 @@
     </div>
 
     <!-- 顶部导航栏 -->
-    <header class="bg-white/90 backdrop-blur-md border-b border-zinc-200/80 px-4 py-2.5 flex items-center justify-between shrink-0 z-20">
-        <!-- 左侧 Logo & 模型选择器 -->
-        <div class="flex items-center space-x-3">
-            <div class="flex items-center space-x-2">
-                <div class="w-7 h-7 rounded-lg bg-zinc-900 text-white flex items-center justify-center font-semibold text-xs tracking-tight shadow-sm">
-                    AI
-                </div>
-                <span class="font-medium text-sm tracking-tight text-zinc-900 hidden sm:inline">助手</span>
+    <header class="bg-white/90 backdrop-blur-md border-b border-zinc-200/80 px-3 sm:px-4 py-2.5 flex items-center justify-between shrink-0 z-20">
+        <!-- 左侧: Logo、新建对话、模型选择器 -->
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <div class="w-7 h-7 rounded-lg bg-zinc-900 text-white flex items-center justify-center font-semibold text-xs tracking-tight shadow-sm shrink-0">
+                AI
             </div>
 
-            <div class="h-4 w-[1px] bg-zinc-200 hidden sm:block"></div>
+            <!-- 新建对话按钮 (显眼易用) -->
+            <button onclick="startNewSession()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-white transition flex items-center space-x-1 shadow-sm shrink-0" title="新建对话">
+                <i class="fa-solid fa-plus text-[10px]"></i>
+                <span>新建对话</span>
+            </button>
 
-            <!-- 模型下拉列表 (纯净无修饰词) -->
-            <div class="relative">
+            <!-- 模型下拉列表 -->
+            <div class="relative hidden sm:block">
                 <select id="model-select" onchange="onModelChange()" class="text-xs bg-zinc-50 border border-zinc-200 text-zinc-800 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-zinc-400 font-medium cursor-pointer appearance-none">
                     <option value="gemini-3.8-flash" selected>Gemini 3.8 Flash</option>
                     <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
@@ -145,12 +145,19 @@
             </div>
         </div>
 
-        <!-- 右侧操作栏 (账户切换、备忘录、清空对话) -->
-        <div class="flex items-center space-x-2">
+        <!-- 右侧: 历史对话列表抽屉、账户切换、备忘录、清空当前 -->
+        <div class="flex items-center space-x-1.5 sm:space-x-2">
+            <!-- 历史对话列表按钮 -->
+            <button onclick="toggleSessionsDrawer()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 border border-zinc-200 text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 transition flex items-center space-x-1" title="查看所有历史对话">
+                <i class="fa-regular fa-clock-rotate-left text-zinc-500"></i>
+                <span class="hidden sm:inline">历史</span>
+                <span id="session-count-badge" class="text-[10px] text-zinc-400"></span>
+            </button>
+
             <!-- 账户标识药丸按钮 (点击切换/登录) -->
             <button onclick="openAccountModal()" id="account-btn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 border border-zinc-200 text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 transition flex items-center space-x-1.5" title="账户与同步">
                 <i class="fa-regular fa-user text-zinc-500"></i>
-                <span id="account-name-display" class="max-w-[90px] truncate">账户</span>
+                <span id="account-name-display" class="max-w-[70px] sm:max-w-[90px] truncate">账户</span>
             </button>
 
             <!-- 备忘录按钮 -->
@@ -159,16 +166,27 @@
                 <span class="hidden sm:inline">备忘</span>
             </button>
 
-            <!-- 清空当前历史 -->
-            <button onclick="confirmClearHistory()" class="w-8 h-8 rounded-lg text-xs font-medium text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 transition flex items-center justify-center" title="新建对话">
-                <i class="fa-regular fa-pen-to-square"></i>
+            <!-- 清空当前对话 -->
+            <button onclick="confirmClearCurrentHistory()" class="w-8 h-8 rounded-lg text-xs font-medium text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 transition flex items-center justify-center shrink-0" title="清空当前对话">
+                <i class="fa-regular fa-trash-can"></i>
             </button>
         </div>
     </header>
 
+    <!-- 手机端模型选择栏 (小屏自适应) -->
+    <div class="sm:hidden px-3 py-1.5 bg-zinc-100/60 border-b border-zinc-200/60 flex items-center justify-between">
+        <span class="text-[11px] text-zinc-500">当前模型:</span>
+        <select id="model-select-mobile" onchange="onMobileModelChange()" class="text-xs bg-white border border-zinc-200 text-zinc-800 rounded px-2 py-0.5 font-medium">
+            <option value="gemini-3.8-flash" selected>Gemini 3.8 Flash</option>
+            <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
+            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
+        </select>
+    </div>
+
     <!-- 消息对话展示主容器 -->
     <main id="chat-container" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 select-text">
-        <!-- 空状态提示 (静雅极简) -->
+        <!-- 空状态提示 -->
         <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center text-zinc-400 space-y-2 py-20">
             <div class="w-10 h-10 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 text-sm">
                 <i class="fa-solid fa-sparkles"></i>
@@ -225,7 +243,31 @@
         </div>
     </footer>
 
-    <!-- 账户登录 / 切换弹窗 (持久化多设备记忆) -->
+    <!-- 历史会话抽屉 (多会话管理) -->
+    <div id="sessions-drawer" class="fixed inset-y-0 left-0 w-full max-w-xs bg-white shadow-2xl border-r border-zinc-200 z-50 transform -translate-x-full transition-transform duration-200 flex flex-col">
+        <div class="p-4 border-b border-zinc-200 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fa-regular fa-clock-rotate-left text-zinc-700 text-sm"></i>
+                <h3 class="font-semibold text-sm text-zinc-900">历史对话</h3>
+            </div>
+            <button onclick="toggleSessionsDrawer()" class="text-zinc-400 hover:text-zinc-700 text-sm p-1">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-3 border-b border-zinc-100">
+            <button onclick="startNewSession(); toggleSessionsDrawer();" class="w-full py-2 px-3 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-medium flex items-center justify-center space-x-1.5 transition">
+                <i class="fa-solid fa-plus text-[10px]"></i>
+                <span>新建对话</span>
+            </button>
+        </div>
+
+        <div id="sessions-list-container" class="flex-1 overflow-y-auto p-3 space-y-1.5">
+            <div class="text-center text-xs text-zinc-400 py-10">暂无历史对话</div>
+        </div>
+    </div>
+
+    <!-- 账户登录 / 切换弹窗 -->
     <div id="account-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl border border-zinc-200 w-full max-w-sm p-5 space-y-4">
             <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
@@ -262,7 +304,6 @@
 
     <!-- 备忘录抽屉 -->
     <div id="notes-drawer" class="fixed inset-y-0 right-0 w-full max-w-sm bg-white shadow-2xl border-l border-zinc-200 z-50 transform translate-x-full transition-transform duration-200 flex flex-col">
-        <!-- 抽屉顶部 -->
         <div class="p-4 border-b border-zinc-200 flex items-center justify-between">
             <div class="flex items-center space-x-2">
                 <i class="fa-regular fa-bookmark text-zinc-700 text-sm"></i>
@@ -273,7 +314,6 @@
             </button>
         </div>
 
-        <!-- 快速添加备忘输入框 -->
         <div class="p-3 border-b border-zinc-100 bg-zinc-50/50">
             <div class="flex items-center space-x-1.5">
                 <input type="text" id="new-note-input" placeholder="添加备忘事项..." class="flex-1 text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-zinc-400" onkeydown="if(event.key==='Enter') quickAddNote()">
@@ -281,7 +321,6 @@
             </div>
         </div>
 
-        <!-- 备忘列表内容 -->
         <div id="notes-list-container" class="flex-1 overflow-y-auto p-4 space-y-2.5">
             <div class="text-center text-xs text-zinc-400 py-10">暂无备忘事项</div>
         </div>
@@ -290,6 +329,7 @@
     <script>
         // 1. 全局状态
         let currentUserId = localStorage.getItem("chat_user_id") || "User_1";
+        let currentSessionId = localStorage.getItem("chat_session_id") || "default";
         let currentModel = localStorage.getItem("chat_model") || "gemini-3.8-flash";
         let pendingImageData = null;
         let pendingFileData = null;
@@ -299,6 +339,7 @@
         window.addEventListener("DOMContentLoaded", () => {
             initModel();
             updateAccountDisplay();
+            loadSessionsList();
             loadChatHistory();
             loadNotes();
             fetchRecentAccounts();
@@ -309,23 +350,113 @@
         // 2. 模型设置
         function initModel() {
             const select = document.getElementById("model-select");
-            if (select) {
-                select.value = currentModel;
-            }
+            const selectMobile = document.getElementById("model-select-mobile");
+            if (select) select.value = currentModel;
+            if (selectMobile) selectMobile.value = currentModel;
         }
 
         function onModelChange() {
             const select = document.getElementById("model-select");
             currentModel = select.value;
             localStorage.setItem("chat_model", currentModel);
+            const selectMobile = document.getElementById("model-select-mobile");
+            if (selectMobile) selectMobile.value = currentModel;
         }
 
-        // 3. 账户管理与持久化对话同步
+        function onMobileModelChange() {
+            const selectMobile = document.getElementById("model-select-mobile");
+            currentModel = selectMobile.value;
+            localStorage.setItem("chat_model", currentModel);
+            const select = document.getElementById("model-select");
+            if (select) select.value = currentModel;
+        }
+
+        // 3. 新建对话与会话管理
+        function startNewSession() {
+            currentSessionId = "s_" + Date.now();
+            localStorage.setItem("chat_session_id", currentSessionId);
+            showEmptyState();
+            clearAttachment();
+            document.getElementById("user-input").value = "";
+            document.getElementById("user-input").focus();
+            loadSessionsList();
+        }
+
+        function toggleSessionsDrawer() {
+            const drawer = document.getElementById("sessions-drawer");
+            drawer.classList.toggle("-translate-x-full");
+            if (!drawer.classList.contains("-translate-x-full")) {
+                loadSessionsList();
+            }
+        }
+
+        async function loadSessionsList() {
+            try {
+                const res = await fetch(`/api/sessions?user_id=${encodeURIComponent(currentUserId)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    renderSessionsList(data.sessions || []);
+                }
+            } catch (e) {
+                console.error("加载会话列表失败:", e);
+            }
+        }
+
+        function renderSessionsList(sessions) {
+            const container = document.getElementById("sessions-list-container");
+            const badge = document.getElementById("session-count-badge");
+            if (badge) badge.innerText = `(${sessions.length})`;
+
+            if (!sessions || sessions.length === 0) {
+                container.innerHTML = '<div class="text-center text-xs text-zinc-400 py-10">暂无历史对话</div>';
+                return;
+            }
+
+            container.innerHTML = "";
+            sessions.forEach(sess => {
+                const isActive = sess.id === currentSessionId;
+                const item = document.createElement("div");
+                item.className = `p-2.5 rounded-xl flex items-center justify-between text-xs cursor-pointer transition group ${isActive ? 'bg-zinc-100 font-semibold text-zinc-900 border border-zinc-200' : 'hover:bg-zinc-50 text-zinc-600'}`;
+                item.innerHTML = `
+                    <div class="flex-1 truncate mr-2 flex items-center space-x-1.5" onclick="switchSession('${sess.id}')">
+                        <i class="fa-regular fa-message text-[11px] ${isActive ? 'text-zinc-900' : 'text-zinc-400'}"></i>
+                        <span class="truncate">${escapeHtml(sess.title || '新对话')}</span>
+                    </div>
+                    <button onclick="event.stopPropagation(); deleteSession('${sess.id}')" class="text-zinc-400 hover:text-zinc-700 p-1 opacity-0 group-hover:opacity-100 transition" title="删除">
+                        <i class="fa-solid fa-xmark text-xs"></i>
+                    </button>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function switchSession(sessionId) {
+            currentSessionId = sessionId;
+            localStorage.setItem("chat_session_id", currentSessionId);
+            toggleSessionsDrawer();
+            loadChatHistory();
+        }
+
+        async function deleteSession(sessionId) {
+            if (!confirm("确认删除该条历史对话？")) return;
+            try {
+                const res = await fetch(`/api/sessions/delete?user_id=${encodeURIComponent(currentUserId)}&session_id=${encodeURIComponent(sessionId)}`, { method: "POST" });
+                if (res.ok) {
+                    if (currentSessionId === sessionId) {
+                        startNewSession();
+                    } else {
+                        loadSessionsList();
+                    }
+                }
+            } catch (e) {
+                alert("删除失败: " + e.message);
+            }
+        }
+
+        // 4. 账户管理
         function updateAccountDisplay() {
             const display = document.getElementById("account-name-display");
-            if (display) {
-                display.innerText = currentUserId;
-            }
+            if (display) display.innerText = currentUserId;
             localStorage.setItem("chat_user_id", currentUserId);
         }
 
@@ -348,8 +479,10 @@
 
             if (newAccount !== currentUserId) {
                 currentUserId = newAccount;
+                currentSessionId = "default";
+                localStorage.setItem("chat_session_id", currentSessionId);
                 updateAccountDisplay();
-                // 切换账户后，立即加载该账户历史对话与备忘
+                loadSessionsList();
                 loadChatHistory();
                 loadNotes();
             }
@@ -383,17 +516,17 @@
             }
         }
 
-        // 4. 对话历史加载与渲染
+        // 5. 对话历史加载与渲染
         async function loadChatHistory() {
             const container = document.getElementById("chat-container");
             container.innerHTML = `
                 <div class="h-full flex items-center justify-center text-zinc-400 text-xs py-10">
-                    <i class="fa-solid fa-circle-notch fa-spin mr-1.5"></i> 正在同步历史对话...
+                    <i class="fa-solid fa-circle-notch fa-spin mr-1.5"></i> 正在同步对话记录...
                 </div>
             `;
 
             try {
-                const res = await fetch(`/api/history?user_id=${encodeURIComponent(currentUserId)}`);
+                const res = await fetch(`/api/history?user_id=${encodeURIComponent(currentUserId)}&session_id=${encodeURIComponent(currentSessionId)}`);
                 if (res.ok) {
                     const data = await res.json();
                     const history = data.history || [];
@@ -428,19 +561,20 @@
             `;
         }
 
-        async function confirmClearHistory() {
-            if (!confirm(`确认清空当前账户 [${currentUserId}] 的历史对话记录？`)) return;
+        async function confirmClearCurrentHistory() {
+            if (!confirm(`确认清空当前对话的消息记录？`)) return;
             try {
-                const res = await fetch(`/api/clear_history?user_id=${encodeURIComponent(currentUserId)}`, { method: "POST" });
+                const res = await fetch(`/api/clear_history?user_id=${encodeURIComponent(currentUserId)}&session_id=${encodeURIComponent(currentSessionId)}`, { method: "POST" });
                 if (res.ok) {
                     showEmptyState();
+                    loadSessionsList();
                 }
             } catch (e) {
                 alert("清空失败: " + e);
             }
         }
 
-        // 5. 消息渲染与数学排版
+        // 6. 消息排版与渲染
         function appendMessageToUI(role, content, timestamp = null, shouldScroll = true) {
             const container = document.getElementById("chat-container");
             const emptyState = document.getElementById("empty-state");
@@ -476,7 +610,7 @@
                     </div>
                 `;
 
-                // 注入代码高亮与复制功能
+                // 代码复制
                 const preElements = wrapper.querySelectorAll("pre");
                 preElements.forEach(pre => {
                     const copyBtn = document.createElement("button");
@@ -532,7 +666,7 @@
             );
         }
 
-        // 6. 发送消息
+        // 7. 发送消息
         async function sendMessage() {
             if (isSending) return;
             const input = document.getElementById("user-input");
@@ -551,12 +685,10 @@
                 displayText = `[文件: ${pendingFileData.name}] ` + (text || "文档分析");
             }
 
-            // 本地展示用户消息
             appendMessageToUI("user", displayText, new Date().toLocaleTimeString().substring(0, 5));
             input.value = "";
             autoResize(input);
 
-            // 暂存并清除附件
             const sendImage = pendingImageData;
             const sendFile = pendingFileData;
             clearAttachment();
@@ -576,6 +708,7 @@
             try {
                 const payload = {
                     user_id: currentUserId,
+                    session_id: currentSessionId,
                     message: text,
                     model: currentModel,
                     image: sendImage,
@@ -593,7 +726,8 @@
                 if (res.ok) {
                     const data = await res.json();
                     appendMessageToUI("assistant", data.reply || "", new Date().toLocaleTimeString().substring(0, 5));
-                    // 如果发送的是记事指令，同步刷新备忘录列表
+                    // 刷新会话标题与备忘录
+                    loadSessionsList();
                     if (text.startsWith("记一下") || text.startsWith("帮我记") || text.startsWith("待办") || text.startsWith("备忘")) {
                         loadNotes();
                     }
@@ -622,7 +756,7 @@
             textarea.style.height = Math.min(textarea.scrollHeight, 140) + "px";
         }
 
-        // 7. 图片与文档附件处理
+        // 8. 附件选择与拖拽处理
         function onImageSelected(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -670,7 +804,6 @@
                 };
                 reader.readAsDataURL(file);
             } else {
-                // 文本类文档 (txt, md, py, csv, json, c, cpp, js, html 等)
                 const reader = new FileReader();
                 reader.onload = function(evt) {
                     const text = evt.target.result;
@@ -720,7 +853,6 @@
             document.getElementById("file-name").innerText = "";
         }
 
-        // 8. 拖拽与剪贴板截图粘贴支持
         function setupDragAndDrop() {
             const overlay = document.getElementById("drag-overlay");
             let dragCounter = 0;

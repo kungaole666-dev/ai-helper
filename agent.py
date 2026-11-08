@@ -40,7 +40,7 @@ def handle_quick_notes(user_id: str, text: str) -> str:
 
     return None
 
-def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: Dict[str, str] = None, file_data: Dict[str, Any] = None) -> str:
+def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: Dict[str, str] = None, file_data: Dict[str, Any] = None, session_id: str = "default") -> str:
     """调用 Google Gemini 官方 API (支持图片识图、PDF原生解析、文档分析、动态模型与 503 自动容灾)"""
     api_key = os.environ.get("GEMINI_API_KEY", "").strip() or cfg.get("GEMINI_API_KEY", "").strip()
     
@@ -63,8 +63,8 @@ def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: D
     if not api_key:
         return "【系统提示】尚未配置 GEMINI_API_KEY，请在 Render 的 Environment 中配置。"
 
-    # 读取上下文历史 (连贯记忆)
-    history = db.get_chat_history(user_id, limit=8)
+    # 读取上下文历史 (按具体会话隔离连贯记忆)
+    history = db.get_chat_history(user_id, session_id=session_id, limit=8)
     contents = []
     for h in history:
         role = "user" if h["role"] == "user" else "model"
@@ -145,8 +145,8 @@ def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: D
                     elif file_data:
                         saved_user_text = f"[文件: {file_data.get('name', '附件')}] " + (prompt.strip() if prompt else "文档分析")
 
-                    db.save_chat_message(user_id, "user", saved_user_text)
-                    db.save_chat_message(user_id, "assistant", answer)
+                    db.save_chat_message(user_id, "user", saved_user_text, session_id=session_id)
+                    db.save_chat_message(user_id, "assistant", answer, session_id=session_id)
                     return answer
                 elif resp.status_code == 503 or resp.status_code == 429:
                     print(f"[Model Fallback] 模型 {current_model} 高峰拥挤 ({resp.status_code})，自动尝试备用模型...")
@@ -161,7 +161,7 @@ def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: D
 
     return f"模型当前处于全球请求高峰期，请稍等 10 秒后再试 (错误: {last_err})"
 
-def run_agent(user_id: str, user_message: str, model_name: str = None, image_data: Dict[str, str] = None, file_data: Dict[str, Any] = None) -> str:
+def run_agent(user_id: str, user_message: str, model_name: str = None, image_data: Dict[str, str] = None, file_data: Dict[str, Any] = None, session_id: str = "default") -> str:
     """主入口函数"""
     # 仅在无图片和文件时触发记事或搜索快速指令
     if not image_data and not file_data:
@@ -173,7 +173,7 @@ def run_agent(user_id: str, user_message: str, model_name: str = None, image_dat
             query = user_message.lstrip("搜索：: 查一下搜一下")
             search_res = search.search_web(query)
             prompt_with_search = f"用户想要了解「{query}」，以下是网页检索到的参考资料：\n{search_res}\n\n请结合以上资料给出全面清晰的总结。"
-            return call_gemini(user_id, prompt_with_search, model_name=model_name)
+            return call_gemini(user_id, prompt_with_search, model_name=model_name, session_id=session_id)
 
     # 交付 Gemini 进行多模态图文与文件深度推理
-    return call_gemini(user_id, user_message, model_name=model_name, image_data=image_data, file_data=file_data)
+    return call_gemini(user_id, user_message, model_name=model_name, image_data=image_data, file_data=file_data, session_id=session_id)

@@ -33,6 +33,7 @@ from typing import Optional, Dict, Any
 # 2. 网页端对话 API
 class ChatRequest(BaseModel):
     user_id: str
+    session_id: Optional[str] = "default"
     message: str
     model: Optional[str] = None
     image: Optional[Dict[str, str]] = None
@@ -42,6 +43,7 @@ class ChatRequest(BaseModel):
 async def api_chat(req: ChatRequest):
     try:
         user_id = req.user_id.strip() or "guest_user"
+        session_id = req.session_id.strip() if req.session_id else "default"
         message = req.message.strip()
         model_name = req.model.strip() if req.model else None
         image_data = req.image if (req.image and req.image.get("data")) else None
@@ -50,22 +52,32 @@ async def api_chat(req: ChatRequest):
         if not message and not image_data and not file_data:
             return {"reply": "请输入您的问题、上传图片或拖入文件。"}
 
-        print(f"💬 [Web 访客 {user_id} 模型 {model_name} 图:{bool(image_data)} 文档:{bool(file_data)}]: {message[:30]}")
-        reply = run_agent(user_id=user_id, user_message=message, model_name=model_name, image_data=image_data, file_data=file_data)
+        print(f"💬 [Web 访客 {user_id} 会话 {session_id} 模型 {model_name} 图:{bool(image_data)} 文档:{bool(file_data)}]: {message[:30]}")
+        reply = run_agent(user_id=user_id, user_message=message, model_name=model_name, image_data=image_data, file_data=file_data, session_id=session_id)
         return {"reply": reply}
     except Exception as e:
         print(f"❌ api_chat 处理异常: {e}")
         return {"reply": f"助手在处理请求时遇到小问题: {str(e)}"}
 
 # 3. 聊天记录与持久化记忆 API
+@app.get("/api/sessions")
+def api_get_sessions(user_id: str = Query(...)):
+    sessions = db.get_user_sessions(user_id=user_id)
+    return {"sessions": sessions}
+
+@app.post("/api/sessions/delete")
+def api_delete_session(user_id: str = Query(...), session_id: str = Query(...)):
+    success = db.delete_session(user_id=user_id, session_id=session_id)
+    return {"success": success}
+
 @app.get("/api/history")
-def api_get_history(user_id: str = Query(...)):
-    history = db.get_display_history(user_id=user_id, limit=100)
+def api_get_history(user_id: str = Query(...), session_id: Optional[str] = Query(None)):
+    history = db.get_display_history(user_id=user_id, session_id=session_id or "default", limit=100)
     return {"history": history}
 
 @app.post("/api/clear_history")
-def api_clear_history(user_id: str = Query(...)):
-    success = db.clear_chat_history(user_id=user_id)
+def api_clear_history(user_id: str = Query(...), session_id: Optional[str] = Query(None)):
+    success = db.clear_chat_history(user_id=user_id, session_id=session_id)
     return {"success": success}
 
 @app.get("/api/accounts")
