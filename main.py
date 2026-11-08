@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import json
+from typing import Optional, Dict, Any
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -15,13 +16,13 @@ from wechat_client import wx_client
 from agent import run_agent, stream_agent
 import db
 
-app = FastAPI(title="AI 智能解题与记事助理")
+app = FastAPI(title="AI")
 
 HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
 if not os.path.exists(HTML_PATH):
     HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "index.html")
 
-# 1. 网页前端入口 (微信/手机/电脑浏览器打开即用)
+# 1. 网页前端入口
 @app.get("/", response_class=HTMLResponse)
 def index_page():
     if os.path.exists(HTML_PATH):
@@ -29,11 +30,43 @@ def index_page():
             return f.read()
     return "<h1>前端页面 index.html 正在准备中...</h1>"
 
-from typing import Optional, Dict, Any
+# 2. 账户认证接口 (密码加盐哈希保护，杜绝他人查看数据)
+class AuthRequest(BaseModel):
+    username: str
+    password: str
 
-# 2. 网页端对话 API
+class LogoutRequest(BaseModel):
+    token: str
+
+@app.post("/api/auth/register")
+def api_register(req: AuthRequest):
+    success, msg, token = db.register_user(req.username, req.password)
+    if not success:
+        return {"success": False, "message": msg}
+    return {"success": True, "message": msg, "token": token, "username": req.username.strip()}
+
+@app.post("/api/auth/login")
+def api_login(req: AuthRequest):
+    success, msg, token = db.login_user(req.username, req.password)
+    if not success:
+        return {"success": False, "message": msg}
+    return {"success": True, "message": msg, "token": token, "username": req.username.strip()}
+
+@app.get("/api/auth/me")
+def api_auth_me(token: str = Query(...)):
+    username = db.verify_token(token)
+    if not username:
+        return {"authenticated": False}
+    return {"authenticated": True, "username": username}
+
+@app.post("/api/auth/logout")
+def api_logout(req: LogoutRequest):
+    db.logout_user(req.token)
+    return {"success": True}
+
+# 3. 网页端对话 API (强制 Token 认证，数据仅自己可见)
 class ChatRequest(BaseModel):
-    user_id: str
+    token: str
     session_id: Optional[str] = "default"
     message: str
     model: Optional[str] = None
@@ -43,7 +76,10 @@ class ChatRequest(BaseModel):
 @app.post("/api/chat")
 def api_chat(req: ChatRequest):
     try:
-        user_id = req.user_id.strip() or "guest_user"
+        user_id = db.verify_token(req.token)
+        if not user_id:
+            return {"reply": "未登录或登录已失效，请重新登录账户。"}
+
         session_id = req.session_id.strip() if req.session_id else "default"
         message = req.message.strip()
         model_name = req.model.strip() if req.model else None
@@ -53,18 +89,23 @@ def api_chat(req: ChatRequest):
         if not message and not image_data and not file_data:
             return {"reply": "请输入您的问题、上传图片或拖入文件。"}
 
-        print(f"💬 [Web 访客 {user_id} 会话 {session_id} 模型 {model_name} 图:{bool(image_data)} 文档:{bool(file_data)}]: {message[:30]}")
+        print(f"💬 [Web 用户 {user_id} 会话 {session_id} 模型 {model_name} 图:{bool(image_data)} 文档:{bool(file_data)}]: {message[:30]}")
         reply = run_agent(user_id=user_id, user_message=message, model_name=model_name, image_data=image_data, file_data=file_data, session_id=session_id)
         return {"reply": reply}
     except Exception as e:
         print(f"❌ api_chat 处理异常: {e}")
-        return {"reply": f"助手在处理请求时遇到小问题: {str(e)}"}
+        return {"reply": f"处理异常: {str(e)}"}
 
 @app.post("/api/chat/stream")
 def api_chat_stream(req: ChatRequest):
     """流式返回接口 (SSE 打字机输出，首字秒级返回)"""
     try:
-        user_id = req.user_id.strip() or "guest_user"
+        user_id = db.verify_token(req.token)
+        if not user_id:
+            def unauth_gen():
+                yield json.dumps({"text": "未登录或登录已失效，请重新登录。"}, ensure_ascii=False) + "\n"
+            return StreamingResponse(unauth_gen(), media_type="text/event-stream")
+
         session_id = req.session_id.strip() if req.session_id else "default"
         message = req.message.strip()
         model_name = req.model.strip() if req.model else None
@@ -76,7 +117,7 @@ def api_chat_stream(req: ChatRequest):
                 yield json.dumps({"text": "请输入您的问题、上传图片或拖入文件。"}, ensure_ascii=False) + "\n"
             return StreamingResponse(empty_gen(), media_type="text/event-stream")
 
-        print(f"⚡ [Stream 访客 {user_id} 会话 {session_id} 模型 {model_name}]: {message[:30]}")
+        print(f"⚡ [Stream 用户 {user_id} 会话 {session_id} 模型 {model_name}]: {message[:30]}")
         
         def stream_gen():
             for chunk in stream_agent(user_id=user_id, user_message=message, model_name=model_name, image_data=image_data, file_data=file_data, session_id=session_id):
@@ -88,54 +129,70 @@ def api_chat_stream(req: ChatRequest):
             yield json.dumps({"text": f"请求异常: {str(e)}"}, ensure_ascii=False) + "\n"
         return StreamingResponse(err_gen(), media_type="text/event-stream")
 
-# 3. 聊天记录与持久化记忆 API
+# 4. 历史记录与多会话 API (严格鉴权)
 @app.get("/api/sessions")
-def api_get_sessions(user_id: str = Query(...)):
+def api_get_sessions(token: str = Query(...)):
+    user_id = db.verify_token(token)
+    if not user_id:
+        return {"sessions": []}
     sessions = db.get_user_sessions(user_id=user_id)
     return {"sessions": sessions}
 
 @app.post("/api/sessions/delete")
-def api_delete_session(user_id: str = Query(...), session_id: str = Query(...)):
+def api_delete_session(token: str = Query(...), session_id: str = Query(...)):
+    user_id = db.verify_token(token)
+    if not user_id:
+        return {"success": False}
     success = db.delete_session(user_id=user_id, session_id=session_id)
     return {"success": success}
 
 @app.get("/api/history")
-def api_get_history(user_id: str = Query(...), session_id: Optional[str] = Query(None)):
+def api_get_history(token: str = Query(...), session_id: Optional[str] = Query(None)):
+    user_id = db.verify_token(token)
+    if not user_id:
+        return {"history": []}
     history = db.get_display_history(user_id=user_id, session_id=session_id or "default", limit=100)
     return {"history": history}
 
 @app.post("/api/clear_history")
-def api_clear_history(user_id: str = Query(...), session_id: Optional[str] = Query(None)):
+def api_clear_history(token: str = Query(...), session_id: Optional[str] = Query(None)):
+    user_id = db.verify_token(token)
+    if not user_id:
+        return {"success": False}
     success = db.clear_chat_history(user_id=user_id, session_id=session_id)
     return {"success": success}
 
-@app.get("/api/accounts")
-def api_get_accounts():
-    accounts = db.get_recent_users(limit=10)
-    return {"accounts": accounts}
-
-# 4. 备忘录清单 API (多用户隔离)
+# 5. 备忘录清单 API (严格鉴权)
 class NoteAddRequest(BaseModel):
-    user_id: str
+    token: str
     content: str
     category: Optional[str] = "备忘"
 
 @app.get("/api/notes")
-def api_get_notes(user_id: str = Query(...)):
+def api_get_notes(token: str = Query(...)):
+    user_id = db.verify_token(token)
+    if not user_id:
+        return {"notes": []}
     notes = db.get_notes(user_id=user_id, limit=50)
     return {"notes": notes}
 
 @app.post("/api/notes/add")
 def api_add_note(req: NoteAddRequest):
-    note = db.add_note(user_id=req.user_id, content=req.content, category=req.category or "备忘")
+    user_id = db.verify_token(req.token)
+    if not user_id:
+        return {"success": False, "message": "未登录"}
+    note = db.add_note(user_id=user_id, content=req.content, category=req.category or "备忘")
     return {"success": True, "note": note}
 
 @app.post("/api/notes/delete")
-def api_delete_note(user_id: str = Query(...), note_id: int = Query(...)):
+def api_delete_note(token: str = Query(...), note_id: int = Query(...)):
+    user_id = db.verify_token(token)
+    if not user_id:
+        return {"success": False}
     success = db.delete_note(user_id=user_id, note_id=note_id)
     return {"success": success}
 
-# 4. 企业微信回调 (保留备用)
+# 6. 企业微信回调 (保留备用)
 def get_crypt():
     return WXBizMsgCrypt(
         token=cfg.get("TOKEN"),
