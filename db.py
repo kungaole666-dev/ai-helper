@@ -117,12 +117,18 @@ def get_chat_history(user_id: str, limit: int = 8) -> List[Dict[str, str]]:
     rows.reverse()
     return [{"role": r[0], "content": r[1]} for r in rows]
 
-def get_display_history(user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
-    """获取前端渲染展示的历史记录清单"""
+def get_display_history(user_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    """获取前端渲染展示的历史记录清单 (按时间升序排好)"""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, role, content, created_at FROM chat_history WHERE user_id = ? ORDER BY id ASC LIMIT ?",
+        """
+        SELECT id, role, content, created_at FROM (
+            SELECT id, role, content, created_at FROM chat_history 
+            WHERE user_id = ? 
+            ORDER BY id DESC LIMIT ?
+        ) ORDER BY id ASC
+        """,
         (user_id, limit)
     )
     rows = cursor.fetchall()
@@ -131,6 +137,18 @@ def get_display_history(user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
         {"id": r[0], "role": r[1], "content": r[2], "created_at": r[3]}
         for r in rows
     ]
+
+def get_recent_users(limit: int = 10) -> List[str]:
+    """获取最近活跃的账户列表"""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT DISTINCT user_id FROM chat_history ORDER BY id DESC LIMIT ?",
+        (limit,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [r[0] for r in rows if r[0]]
 
 def clear_chat_history(user_id: str) -> bool:
     """清空指定用户的全部聊天记忆 (新建对话)"""

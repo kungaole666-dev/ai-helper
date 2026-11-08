@@ -7,23 +7,22 @@ from config import cfg
 import db
 import search
 
-SYSTEM_INSTRUCTION = """你是一个智能、亲切且高效的微信个人助手。你具备以下核心能力：
-1. 【解题辅导】：面对数学、物理、化学、编程等学科或算法问题时，给出严谨详细的分步解答、公式推导与思路解析。尽量使用纯文本易读排版。
-2. 【日常问答与分析】：回答用户的各类疑问，给出条理清晰、有深度、客观准确的建议。
-3. 【记事提醒辅助】：当用户想要记录待办时，提醒他们可以使用简洁的指令（如：'记一下：明天下午开会'），系统会自动归档。
-
-请用自然、流畅的中文回答。"""
+SYSTEM_INSTRUCTION = """你是一个严谨、高效的专业 AI 助手。
+1. 解题与分析：面对学科问题、学术推导、代码编程或逻辑推理时，给出严谨详细的分步解答与推导。数学公式使用标准 LaTeX 格式（行内公式用 $...$，独立块级公式用 $$...$$）。
+2. 文档与图像：精准分析用户上传的文档和图像内容，提取关键信息并做客观解答。
+3. 记事与管理：协助记录和整理备忘事项。
+回复必须专业、准确、客观，排版清晰规整，不使用夸张或冗余的修饰语。"""
 
 def handle_quick_notes(user_id: str, text: str) -> str:
-    """快速前置拦截：记事本与备忘查询，保证100%命中且0延迟"""
+    """快速前置拦截：记事本与备忘查询"""
     clean_text = text.strip()
     
     # 查看笔记
     if clean_text in ["查看笔记", "我的备忘", "我记了什么", "备忘录", "待办清单", "查看待办"]:
-        notes = db.get_notes(user_id=user_id, limit=10)
+        notes = db.get_notes(user_id=user_id, limit=20)
         if not notes:
-            return "📝 你目前还没有记录任何备忘事项哦。\n发送「记一下：买牛奶」即可随时记录！"
-        lines = ["📝 【你的最新备忘清单】:"]
+            return "暂无备忘事项。"
+        lines = ["备忘列表:"]
         for n in notes:
             lines.append(f"• #{n['id']} [{n['category']}] {n['content']} ({n['created_at'][5:16]})")
         return "\n".join(lines)
@@ -35,9 +34,9 @@ def handle_quick_notes(user_id: str, text: str) -> str:
             content = clean_text[len(t):].strip().lstrip("：:，, ")
             if content:
                 res = db.add_note(user_id=user_id, content=content, category="待办" if "待办" in t else "备忘")
-                return f"✅ 已成功记下！\n📌 内容: {content}\n🕒 时间: {res['created_at']}"
+                return f"已记录：{content}"
             else:
-                return "你想记什么内容呢？例如发送：记一下：明天下午交作业"
+                return "请输入需要记录的备忘内容。"
 
     return None
 
@@ -65,13 +64,19 @@ def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: D
         return "【系统提示】尚未配置 GEMINI_API_KEY，请在 Render 的 Environment 中配置。"
 
     # 读取上下文历史 (连贯记忆)
-    history = db.get_chat_history(user_id, limit=6)
+    history = db.get_chat_history(user_id, limit=8)
     contents = []
     for h in history:
-        contents.append({
-            "role": "user" if h["role"] == "user" else "model",
-            "parts": [{"text": h["content"]}]
-        })
+        role = "user" if h["role"] == "user" else "model"
+        if not contents and role != "user":
+            continue
+        if contents and contents[-1]["role"] == role:
+            contents[-1]["parts"][0]["text"] += "\n" + h["content"]
+        else:
+            contents.append({
+                "role": role,
+                "parts": [{"text": h["content"]}]
+            })
 
     # 组装当前用户问题、多模态图片及文档附件
     user_parts = []
@@ -134,11 +139,11 @@ def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: D
                     answer = data["candidates"][0]["content"]["parts"][0]["text"]
                     
                     # 记录持久化聊天历史
-                    saved_user_text = prompt.strip() or "解题/文档分析"
+                    saved_user_text = prompt.strip() or "分析与解答"
                     if image_data:
-                        saved_user_text = "[📷 图片] " + saved_user_text
+                        saved_user_text = "[图片] " + (prompt.strip() if prompt else "图像分析")
                     elif file_data:
-                        saved_user_text = f"[📎 文件: {file_data.get('name')}] " + saved_user_text
+                        saved_user_text = f"[文件: {file_data.get('name', '附件')}] " + (prompt.strip() if prompt else "文档分析")
 
                     db.save_chat_message(user_id, "user", saved_user_text)
                     db.save_chat_message(user_id, "assistant", answer)

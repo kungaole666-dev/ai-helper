@@ -60,7 +60,7 @@ async def api_chat(req: ChatRequest):
 # 3. 聊天记录与持久化记忆 API
 @app.get("/api/history")
 def api_get_history(user_id: str = Query(...)):
-    history = db.get_display_history(user_id=user_id, limit=60)
+    history = db.get_display_history(user_id=user_id, limit=100)
     return {"history": history}
 
 @app.post("/api/clear_history")
@@ -68,11 +68,26 @@ def api_clear_history(user_id: str = Query(...)):
     success = db.clear_chat_history(user_id=user_id)
     return {"success": success}
 
+@app.get("/api/accounts")
+def api_get_accounts():
+    accounts = db.get_recent_users(limit=10)
+    return {"accounts": accounts}
+
 # 4. 备忘录清单 API (多用户隔离)
+class NoteAddRequest(BaseModel):
+    user_id: str
+    content: str
+    category: Optional[str] = "备忘"
+
 @app.get("/api/notes")
 def api_get_notes(user_id: str = Query(...)):
-    notes = db.get_notes(user_id=user_id, limit=30)
+    notes = db.get_notes(user_id=user_id, limit=50)
     return {"notes": notes}
+
+@app.post("/api/notes/add")
+def api_add_note(req: NoteAddRequest):
+    note = db.add_note(user_id=req.user_id, content=req.content, category=req.category or "备忘")
+    return {"success": True, "note": note}
 
 @app.post("/api/notes/delete")
 def api_delete_note(user_id: str = Query(...), note_id: int = Query(...)):

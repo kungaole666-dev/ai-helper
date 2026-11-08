@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- KaTeX 数学公式渲染 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <!-- FontAwesome 图标 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .katex-display {
+            margin: 0.6em 0;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 0.2em 0;
+        }
+        .prose-msg p {
+            margin-bottom: 0.6rem;
+            line-height: 1.65;
+        }
+        .prose-msg p:last-child {
+            margin-bottom: 0;
+        }
+        .prose-msg ul, .prose-msg ol {
+            margin: 0.5rem 0;
+            padding-left: 1.3rem;
+        }
+        .prose-msg ul { list-style-type: disc; }
+        .prose-msg ol { list-style-type: decimal; }
+        .prose-msg li { margin-bottom: 0.25rem; }
+        .prose-msg table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 0.75rem 0;
+            font-size: 0.85rem;
+        }
+        .prose-msg th, .prose-msg td {
+            border: 1px solid #e4e4e7;
+            padding: 0.4rem 0.6rem;
+            text-align: left;
+        }
+        .prose-msg th {
+            background-color: #f4f4f5;
+            font-weight: 600;
+        }
+        .prose-msg pre {
+            position: relative;
+            background: #18181b;
+            color: #f4f4f5;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 0.6rem 0;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.82rem;
+        }
+        .prose-msg code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.85em;
+            background: rgba(0,0,0,0.06);
+            padding: 0.15rem 0.35rem;
+            border-radius: 0.25rem;
+        }
+        .prose-msg pre code {
+            background: transparent;
+            padding: 0;
+            color: inherit;
+        }
+        .copy-code-btn {
+            position: absolute;
+            top: 0.4rem;
+            right: 0.4rem;
+            font-size: 0.7rem;
+            padding: 0.15rem 0.45rem;
+            background: rgba(255,255,255,0.12);
+            color: #d4d4d8;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .copy-code-btn:hover {
+            background: rgba(255,255,255,0.22);
+            color: #ffffff;
+        }
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d4d4d8;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1aa;
+        }
+    </style>
+</head>
+<body class="bg-[#fafafa] text-zinc-900 h-screen flex flex-col justify-between overflow-hidden relative select-none">
+
+    <!-- 全局文件拖拽遮罩 -->
+    <div id="drag-overlay" class="fixed inset-0 bg-zinc-900/10 backdrop-blur-sm border-2 border-dashed border-zinc-400 z-50 hidden flex-col items-center justify-center pointer-events-none transition-opacity">
+        <div class="bg-white px-6 py-5 rounded-2xl shadow-xl flex flex-col items-center border border-zinc-200">
+            <i class="fa-solid fa-arrow-up-from-bracket text-zinc-700 text-2xl mb-2"></i>
+            <span class="text-sm font-medium text-zinc-800">释放以上传文件或图片</span>
+        </div>
+    </div>
+
+    <!-- 顶部导航栏 -->
+    <header class="bg-white/90 backdrop-blur-md border-b border-zinc-200/80 px-4 py-2.5 flex items-center justify-between shrink-0 z-20">
+        <!-- 左侧 Logo & 模型选择器 -->
+        <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2">
+                <div class="w-7 h-7 rounded-lg bg-zinc-900 text-white flex items-center justify-center font-semibold text-xs tracking-tight shadow-sm">
+                    AI
+                </div>
+                <span class="font-medium text-sm tracking-tight text-zinc-900 hidden sm:inline">助手</span>
+            </div>
+
+            <div class="h-4 w-[1px] bg-zinc-200 hidden sm:block"></div>
+
+            <!-- 模型下拉列表 (纯净无修饰词) -->
+            <div class="relative">
+                <select id="model-select" onchange="onModelChange()" class="text-xs bg-zinc-50 border border-zinc-200 text-zinc-800 rounded-lg pl-2.5 pr-6 py-1.5 focus:outline-none focus:border-zinc-400 font-medium cursor-pointer appearance-none">
+                    <option value="gemini-3.8-flash" selected>Gemini 3.8 Flash</option>
+                    <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
+                    <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+                    <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
+                </select>
+                <i class="fa-solid fa-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400 pointer-events-none"></i>
+            </div>
+        </div>
+
+        <!-- 右侧操作栏 (账户切换、备忘录、清空对话) -->
+        <div class="flex items-center space-x-2">
+            <!-- 账户标识药丸按钮 (点击切换/登录) -->
+            <button onclick="openAccountModal()" id="account-btn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 border border-zinc-200 text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 transition flex items-center space-x-1.5" title="账户与同步">
+                <i class="fa-regular fa-user text-zinc-500"></i>
+                <span id="account-name-display" class="max-w-[90px] truncate">账户</span>
+            </button>
+
+            <!-- 备忘录按钮 -->
+            <button onclick="toggleNotesDrawer()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 border border-zinc-200 text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 transition flex items-center space-x-1" title="备忘事项">
+                <i class="fa-regular fa-bookmark text-zinc-500"></i>
+                <span class="hidden sm:inline">备忘</span>
+            </button>
+
+            <!-- 清空当前历史 -->
+            <button onclick="confirmClearHistory()" class="w-8 h-8 rounded-lg text-xs font-medium text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 transition flex items-center justify-center" title="新建对话">
+                <i class="fa-regular fa-pen-to-square"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- 消息对话展示主容器 -->
+    <main id="chat-container" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 select-text">
+        <!-- 空状态提示 (静雅极简) -->
+        <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center text-zinc-400 space-y-2 py-20">
+            <div class="w-10 h-10 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 text-sm">
+                <i class="fa-solid fa-sparkles"></i>
+            </div>
+            <div class="text-xs text-zinc-400 font-normal">输入消息或拖入文件开始对话</div>
+        </div>
+    </main>
+
+    <!-- 底部输入区域 -->
+    <footer class="bg-white/95 backdrop-blur-md border-t border-zinc-200/80 p-3 sm:p-4 shrink-0 z-20">
+        <div class="max-w-4xl mx-auto">
+            <!-- 附件预览条 (图片/文件已选状态) -->
+            <div id="attachment-preview-bar" class="hidden items-center mb-2 px-3 py-1.5 bg-zinc-50 border border-zinc-200 rounded-xl w-fit max-w-full">
+                <!-- 图片缩略图 -->
+                <div id="img-preview-box" class="hidden mr-2 shrink-0">
+                    <img id="img-preview" src="" class="w-9 h-9 object-cover rounded-md border border-zinc-200" alt="预览">
+                </div>
+                <!-- 文件图标与信息 -->
+                <div id="file-preview-box" class="hidden mr-2 shrink-0 flex items-center space-x-1.5">
+                    <i class="fa-solid fa-paperclip text-zinc-500 text-xs"></i>
+                    <span id="file-name" class="text-xs font-medium text-zinc-700 max-w-[180px] sm:max-w-xs truncate"></span>
+                    <span id="file-size" class="text-[10px] text-zinc-400"></span>
+                </div>
+                <!-- 移除按钮 -->
+                <button onclick="clearAttachment()" class="text-zinc-400 hover:text-zinc-700 ml-1.5 text-xs p-1" title="移除附件">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- 主输入框与功能按钮组 -->
+            <div class="flex items-end bg-zinc-50 border border-zinc-200 rounded-2xl p-1.5 focus-within:border-zinc-400 focus-within:bg-white transition shadow-sm">
+                <!-- 隐形原生文件选择器 -->
+                <input type="file" id="image-file-input" accept="image/*" class="hidden" onchange="onImageSelected(event)">
+                <input type="file" id="doc-file-input" accept=".pdf,.txt,.md,.py,.js,.html,.css,.json,.csv,.c,.cpp,.docx" class="hidden" onchange="onDocFileSelected(event)">
+
+                <!-- 上传图片按钮 -->
+                <button type="button" onclick="document.getElementById('image-file-input').click()" class="w-8 h-8 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200/60 flex items-center justify-center shrink-0 mb-0.5 transition" title="上传图片">
+                    <i class="fa-regular fa-image text-sm"></i>
+                </button>
+
+                <!-- 上传文档按钮 -->
+                <button type="button" onclick="document.getElementById('doc-file-input').click()" class="w-8 h-8 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200/60 flex items-center justify-center shrink-0 mb-0.5 mr-1 transition" title="上传文档">
+                    <i class="fa-regular fa-file-lines text-sm"></i>
+                </button>
+
+                <!-- 多行输入框 -->
+                <textarea id="user-input" rows="1" placeholder="输入消息..." class="flex-1 bg-transparent border-0 text-sm text-zinc-900 placeholder-zinc-400 px-2 py-1.5 resize-none focus:outline-none max-h-36 overflow-y-auto leading-relaxed" oninput="autoResize(this)" onkeydown="handleKeyDown(event)"></textarea>
+
+                <!-- 发送按钮 -->
+                <button type="button" id="send-btn" onclick="sendMessage()" class="w-8 h-8 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center shrink-0 mb-0.5 ml-1 transition" title="发送">
+                    <i class="fa-solid fa-arrow-up text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 账户登录 / 切换弹窗 (持久化多设备记忆) -->
+    <div id="account-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl border border-zinc-200 w-full max-w-sm p-5 space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+                <div class="flex items-center space-x-2">
+                    <div class="w-6 h-6 rounded-md bg-zinc-900 text-white flex items-center justify-center text-xs">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <h3 class="font-semibold text-sm text-zinc-900">账户</h3>
+                </div>
+                <button onclick="closeAccountModal()" class="text-zinc-400 hover:text-zinc-700 text-xs p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-zinc-600 mb-1">账户标识</label>
+                    <input type="text" id="account-input" placeholder="输入账户名称" class="w-full px-3 py-2 text-sm bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:border-zinc-400 focus:bg-white transition">
+                </div>
+
+                <!-- 最近活跃账户快速选择 -->
+                <div id="recent-accounts-section" class="hidden">
+                    <span class="block text-[11px] text-zinc-400 mb-1.5">最近账户</span>
+                    <div id="recent-accounts-list" class="flex flex-wrap gap-1.5"></div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-2">
+                <button onclick="closeAccountModal()" class="px-3.5 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 rounded-lg transition font-medium">取消</button>
+                <button onclick="submitAccountChange()" class="px-4 py-1.5 text-xs bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg transition font-medium">确认进入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 备忘录抽屉 -->
+    <div id="notes-drawer" class="fixed inset-y-0 right-0 w-full max-w-sm bg-white shadow-2xl border-l border-zinc-200 z-50 transform translate-x-full transition-transform duration-200 flex flex-col">
+        <!-- 抽屉顶部 -->
+        <div class="p-4 border-b border-zinc-200 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fa-regular fa-bookmark text-zinc-700 text-sm"></i>
+                <h3 class="font-semibold text-sm text-zinc-900">备忘事项</h3>
+            </div>
+            <button onclick="toggleNotesDrawer()" class="text-zinc-400 hover:text-zinc-700 text-sm p-1">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- 快速添加备忘输入框 -->
+        <div class="p-3 border-b border-zinc-100 bg-zinc-50/50">
+            <div class="flex items-center space-x-1.5">
+                <input type="text" id="new-note-input" placeholder="添加备忘事项..." class="flex-1 text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-zinc-400" onkeydown="if(event.key==='Enter') quickAddNote()">
+                <button onclick="quickAddNote()" class="px-3 py-1.5 bg-zinc-900 text-white text-xs rounded-lg hover:bg-zinc-800 transition font-medium shrink-0">添加</button>
+            </div>
+        </div>
+
+        <!-- 备忘列表内容 -->
+        <div id="notes-list-container" class="flex-1 overflow-y-auto p-4 space-y-2.5">
+            <div class="text-center text-xs text-zinc-400 py-10">暂无备忘事项</div>
+        </div>
+    </div>
+
+    <script>
+        // 1. 全局状态
+        let currentUserId = localStorage.getItem("chat_user_id") || "User_1";
+        let currentModel = localStorage.getItem("chat_model") || "gemini-3.8-flash";
+        let pendingImageData = null;
+        let pendingFileData = null;
+        let isSending = false;
+
+        // 初始化
+        window.addEventListener("DOMContentLoaded", () => {
+            initModel();
+            updateAccountDisplay();
+            loadChatHistory();
+            loadNotes();
+            fetchRecentAccounts();
+            setupDragAndDrop();
+            setupPasteUpload();
+        });
+
+        // 2. 模型设置
+        function initModel() {
+            const select = document.getElementById("model-select");
+            if (select) {
+                select.value = currentModel;
+            }
+        }
+
+        function onModelChange() {
+            const select = document.getElementById("model-select");
+            currentModel = select.value;
+            localStorage.setItem("chat_model", currentModel);
+        }
+
+        // 3. 账户管理与持久化对话同步
+        function updateAccountDisplay() {
+            const display = document.getElementById("account-name-display");
+            if (display) {
+                display.innerText = currentUserId;
+            }
+            localStorage.setItem("chat_user_id", currentUserId);
+        }
+
+        function openAccountModal() {
+            const input = document.getElementById("account-input");
+            input.value = currentUserId;
+            document.getElementById("account-modal").classList.remove("hidden");
+            fetchRecentAccounts();
+            setTimeout(() => input.focus(), 50);
+        }
+
+        function closeAccountModal() {
+            document.getElementById("account-modal").classList.add("hidden");
+        }
+
+        function submitAccountChange() {
+            const input = document.getElementById("account-input");
+            const newAccount = input.value.trim();
+            if (!newAccount) return;
+
+            if (newAccount !== currentUserId) {
+                currentUserId = newAccount;
+                updateAccountDisplay();
+                // 切换账户后，立即加载该账户历史对话与备忘
+                loadChatHistory();
+                loadNotes();
+            }
+            closeAccountModal();
+        }
+
+        async function fetchRecentAccounts() {
+            try {
+                const res = await fetch("/api/accounts");
+                if (res.ok) {
+                    const data = await res.json();
+                    const list = data.accounts || [];
+                    const container = document.getElementById("recent-accounts-list");
+                    const section = document.getElementById("recent-accounts-section");
+                    if (list.length > 0) {
+                        section.classList.remove("hidden");
+                        container.innerHTML = "";
+                        list.forEach(acc => {
+                            const btn = document.createElement("button");
+                            btn.className = "text-[11px] px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition";
+                            btn.innerText = acc;
+                            btn.onclick = () => {
+                                document.getElementById("account-input").value = acc;
+                            };
+                            container.appendChild(btn);
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("加载账户列表失败", e);
+            }
+        }
+
+        // 4. 对话历史加载与渲染
+        async function loadChatHistory() {
+            const container = document.getElementById("chat-container");
+            container.innerHTML = `
+                <div class="h-full flex items-center justify-center text-zinc-400 text-xs py-10">
+                    <i class="fa-solid fa-circle-notch fa-spin mr-1.5"></i> 正在同步历史对话...
+                </div>
+            `;
+
+            try {
+                const res = await fetch(`/api/history?user_id=${encodeURIComponent(currentUserId)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const history = data.history || [];
+                    container.innerHTML = "";
+
+                    if (history.length === 0) {
+                        showEmptyState();
+                    } else {
+                        history.forEach(item => {
+                            appendMessageToUI(item.role === "user" ? "user" : "assistant", item.content, item.created_at, false);
+                        });
+                        scrollToBottom();
+                    }
+                } else {
+                    showEmptyState();
+                }
+            } catch (e) {
+                console.error("加载历史失败:", e);
+                showEmptyState();
+            }
+        }
+
+        function showEmptyState() {
+            const container = document.getElementById("chat-container");
+            container.innerHTML = `
+                <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center text-zinc-400 space-y-2 py-20">
+                    <div class="w-10 h-10 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 text-sm">
+                        <i class="fa-solid fa-sparkles"></i>
+                    </div>
+                    <div class="text-xs text-zinc-400 font-normal">输入消息或拖入文件开始对话</div>
+                </div>
+            `;
+        }
+
+        async function confirmClearHistory() {
+            if (!confirm(`确认清空当前账户 [${currentUserId}] 的历史对话记录？`)) return;
+            try {
+                const res = await fetch(`/api/clear_history?user_id=${encodeURIComponent(currentUserId)}`, { method: "POST" });
+                if (res.ok) {
+                    showEmptyState();
+                }
+            } catch (e) {
+                alert("清空失败: " + e);
+            }
+        }
+
+        // 5. 消息渲染与数学排版
+        function appendMessageToUI(role, content, timestamp = null, shouldScroll = true) {
+            const container = document.getElementById("chat-container");
+            const emptyState = document.getElementById("empty-state");
+            if (emptyState) emptyState.remove();
+
+            const timeStr = timestamp ? (timestamp.length > 16 ? timestamp.substring(11, 16) : timestamp) : "";
+
+            const row = document.createElement("div");
+            row.className = role === "user" ? "flex justify-end" : "flex justify-start";
+
+            if (role === "user") {
+                row.innerHTML = `
+                    <div class="flex flex-col items-end max-w-[85%] sm:max-w-[70%]">
+                        <div class="bg-zinc-900 text-zinc-100 text-sm px-4 py-2.5 rounded-2xl rounded-tr-xs leading-relaxed break-words whitespace-pre-wrap select-text">
+                            ${escapeHtml(content)}
+                        </div>
+                        ${timeStr ? `<span class="text-[10px] text-zinc-400 mt-1 mr-1">${timeStr}</span>` : ""}
+                    </div>
+                `;
+            } else {
+                const rawHtml = marked.parse(content || "");
+                const wrapper = document.createElement("div");
+                wrapper.className = "flex flex-col items-start max-w-[95%] sm:max-w-[85%]";
+                wrapper.innerHTML = `
+                    <div class="bg-white border border-zinc-200/90 text-zinc-800 text-sm px-4 sm:px-5 py-3.5 rounded-2xl rounded-tl-xs shadow-[0_1px_2px_rgba(0,0,0,0.03)] prose-msg leading-relaxed break-words w-full select-text">
+                        ${rawHtml}
+                    </div>
+                    <div class="flex items-center space-x-2 mt-1 ml-1 text-[10px] text-zinc-400">
+                        ${timeStr ? `<span>${timeStr}</span>` : ""}
+                        <button onclick="copyRawText(this)" class="hover:text-zinc-600 transition" title="复制回答">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
+                `;
+
+                // 注入代码高亮与复制功能
+                const preElements = wrapper.querySelectorAll("pre");
+                preElements.forEach(pre => {
+                    const copyBtn = document.createElement("button");
+                    copyBtn.className = "copy-code-btn";
+                    copyBtn.innerText = "复制";
+                    copyBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        const code = pre.querySelector("code") ? pre.querySelector("code").innerText : pre.innerText;
+                        navigator.clipboard.writeText(code);
+                        copyBtn.innerText = "已复制";
+                        setTimeout(() => copyBtn.innerText = "复制", 1500);
+                    };
+                    pre.appendChild(copyBtn);
+                });
+
+                // KaTeX 数学公式渲染
+                renderMathInElement(wrapper, {
+                    delimiters: [
+                        { left: "$$", right: "$$", display: true },
+                        { left: "$", right: "$", display: false },
+                        { left: "\\(", right: "\\)", display: false },
+                        { left: "\\[", right: "\\]", display: true }
+                    ],
+                    throwOnError: false
+                });
+
+                row.appendChild(wrapper);
+            }
+
+            container.appendChild(row);
+            if (shouldScroll) scrollToBottom();
+            return row;
+        }
+
+        function copyRawText(btn) {
+            const card = btn.closest(".flex-col").querySelector(".prose-msg");
+            if (card) {
+                navigator.clipboard.writeText(card.innerText);
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check text-zinc-600"></i>';
+                setTimeout(() => btn.innerHTML = originalHtml, 1500);
+            }
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById("chat-container");
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function escapeHtml(str) {
+            return (str || "").replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        // 6. 发送消息
+        async function sendMessage() {
+            if (isSending) return;
+            const input = document.getElementById("user-input");
+            const text = input.value.trim();
+
+            if (!text && !pendingImageData && !pendingFileData) return;
+
+            isSending = true;
+            document.getElementById("send-btn").disabled = true;
+
+            // 组装展示文本
+            let displayText = text;
+            if (pendingImageData) {
+                displayText = "[图片] " + (text || "图像分析");
+            } else if (pendingFileData) {
+                displayText = `[文件: ${pendingFileData.name}] ` + (text || "文档分析");
+            }
+
+            // 本地展示用户消息
+            appendMessageToUI("user", displayText, new Date().toLocaleTimeString().substring(0, 5));
+            input.value = "";
+            autoResize(input);
+
+            // 暂存并清除附件
+            const sendImage = pendingImageData;
+            const sendFile = pendingFileData;
+            clearAttachment();
+
+            // 占位等待指示器
+            const loadingRow = document.createElement("div");
+            loadingRow.className = "flex justify-start";
+            loadingRow.innerHTML = `
+                <div class="bg-white border border-zinc-200/90 text-zinc-400 text-xs px-3.5 py-2.5 rounded-2xl rounded-tl-xs flex items-center space-x-2">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i>
+                    <span>正在处理...</span>
+                </div>
+            `;
+            document.getElementById("chat-container").appendChild(loadingRow);
+            scrollToBottom();
+
+            try {
+                const payload = {
+                    user_id: currentUserId,
+                    message: text,
+                    model: currentModel,
+                    image: sendImage,
+                    file: sendFile
+                };
+
+                const res = await fetch("/api/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                loadingRow.remove();
+
+                if (res.ok) {
+                    const data = await res.json();
+                    appendMessageToUI("assistant", data.reply || "", new Date().toLocaleTimeString().substring(0, 5));
+                    // 如果发送的是记事指令，同步刷新备忘录列表
+                    if (text.startsWith("记一下") || text.startsWith("帮我记") || text.startsWith("待办") || text.startsWith("备忘")) {
+                        loadNotes();
+                    }
+                } else {
+                    appendMessageToUI("assistant", `请求失败 (${res.status})，请重试。`);
+                }
+            } catch (e) {
+                loadingRow.remove();
+                appendMessageToUI("assistant", `网络通信异常: ${e.message}`);
+            } finally {
+                isSending = false;
+                document.getElementById("send-btn").disabled = false;
+                input.focus();
+            }
+        }
+
+        function handleKeyDown(e) {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = "auto";
+            textarea.style.height = Math.min(textarea.scrollHeight, 140) + "px";
+        }
+
+        // 7. 图片与文档附件处理
+        function onImageSelected(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            processImageFile(file);
+            e.target.value = "";
+        }
+
+        function processImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const base64Data = evt.target.result.split(",")[1];
+                pendingImageData = {
+                    mime_type: file.type || "image/jpeg",
+                    data: base64Data
+                };
+                pendingFileData = null;
+                showImagePreview(evt.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function onDocFileSelected(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            processDocFile(file);
+            e.target.value = "";
+        }
+
+        function processDocFile(file) {
+            const fileName = file.name;
+            const fileSizeStr = file.size > 1024 * 1024 ? (file.size / 1024 / 1024).toFixed(1) + "MB" : (file.size / 1024).toFixed(0) + "KB";
+
+            if (file.type === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    const base64Data = evt.target.result.split(",")[1];
+                    pendingFileData = {
+                        name: fileName,
+                        mime_type: "application/pdf",
+                        data: base64Data,
+                        size: file.size
+                    };
+                    pendingImageData = null;
+                    showFilePreview(fileName, fileSizeStr);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                // 文本类文档 (txt, md, py, csv, json, c, cpp, js, html 等)
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    const text = evt.target.result;
+                    pendingFileData = {
+                        name: fileName,
+                        mime_type: file.type || "text/plain",
+                        text_content: text,
+                        size: file.size
+                    };
+                    pendingImageData = null;
+                    showFilePreview(fileName, fileSizeStr);
+                };
+                reader.readAsText(file, "utf-8");
+            }
+        }
+
+        function showImagePreview(src) {
+            const bar = document.getElementById("attachment-preview-bar");
+            const imgBox = document.getElementById("img-preview-box");
+            const fileBox = document.getElementById("file-preview-box");
+            document.getElementById("img-preview").src = src;
+            imgBox.classList.remove("hidden");
+            fileBox.classList.add("hidden");
+            bar.classList.remove("hidden");
+            bar.classList.add("flex");
+        }
+
+        function showFilePreview(name, sizeStr) {
+            const bar = document.getElementById("attachment-preview-bar");
+            const imgBox = document.getElementById("img-preview-box");
+            const fileBox = document.getElementById("file-preview-box");
+            document.getElementById("file-name").innerText = name;
+            document.getElementById("file-size").innerText = `(${sizeStr})`;
+            fileBox.classList.remove("hidden");
+            imgBox.classList.add("hidden");
+            bar.classList.remove("hidden");
+            bar.classList.add("flex");
+        }
+
+        function clearAttachment() {
+            pendingImageData = null;
+            pendingFileData = null;
+            const bar = document.getElementById("attachment-preview-bar");
+            bar.classList.add("hidden");
+            bar.classList.remove("flex");
+            document.getElementById("img-preview").src = "";
+            document.getElementById("file-name").innerText = "";
+        }
+
+        // 8. 拖拽与剪贴板截图粘贴支持
+        function setupDragAndDrop() {
+            const overlay = document.getElementById("drag-overlay");
+            let dragCounter = 0;
+
+            window.addEventListener("dragenter", (e) => {
+                e.preventDefault();
+                dragCounter++;
+                overlay.classList.remove("hidden");
+                overlay.classList.add("flex");
+            });
+
+            window.addEventListener("dragleave", (e) => {
+                e.preventDefault();
+                dragCounter--;
+                if (dragCounter <= 0) {
+                    dragCounter = 0;
+                    overlay.classList.add("hidden");
+                    overlay.classList.remove("flex");
+                }
+            });
+
+            window.addEventListener("dragover", (e) => {
+                e.preventDefault();
+            });
+
+            window.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dragCounter = 0;
+                overlay.classList.add("hidden");
+                overlay.classList.remove("flex");
+
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.type.startsWith("image/")) {
+                        processImageFile(file);
+                    } else {
+                        processDocFile(file);
+                    }
+                }
+            });
+        }
+
+        function setupPasteUpload() {
+            window.addEventListener("paste", (e) => {
+                if (!e.clipboardData || !e.clipboardData.items) return;
+                const items = e.clipboardData.items;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf("image") !== -1) {
+                        const blob = items[i].getAsFile();
+                        if (blob) {
+                            processImageFile(blob);
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+
+        // 9. 备忘录管理
+        function toggleNotesDrawer() {
+            const drawer = document.getElementById("notes-drawer");
+            drawer.classList.toggle("translate-x-full");
+            if (!drawer.classList.contains("translate-x-full")) {
+                loadNotes();
+            }
+        }
+
+        async function loadNotes() {
+            try {
+                const res = await fetch(`/api/notes?user_id=${encodeURIComponent(currentUserId)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    renderNotesList(data.notes || []);
+                }
+            } catch (e) {
+                console.error("加载备忘失败:", e);
+            }
+        }
+
+        function renderNotesList(notes) {
+            const container = document.getElementById("notes-list-container");
+            if (!notes || notes.length === 0) {
+                container.innerHTML = '<div class="text-center text-xs text-zinc-400 py-10">暂无备忘事项</div>';
+                return;
+            }
+
+            container.innerHTML = "";
+            notes.forEach(n => {
+                const card = document.createElement("div");
+                card.className = "p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl flex items-start justify-between text-xs space-x-2";
+                card.innerHTML = `
+                    <div class="flex-1 space-y-1">
+                        <div class="text-zinc-800 break-words">${escapeHtml(n.content)}</div>
+                        <div class="text-[10px] text-zinc-400 flex items-center space-x-1.5">
+                            <span class="bg-zinc-200/60 px-1.5 py-0.2 rounded text-zinc-600">${escapeHtml(n.category || '备忘')}</span>
+                            <span>${(n.created_at || '').substring(5, 16)}</span>
+                        </div>
+                    </div>
+                    <button onclick="deleteNote(${n.id})" class="text-zinc-400 hover:text-zinc-700 p-1" title="删除">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function quickAddNote() {
+            const input = document.getElementById("new-note-input");
+            const text = input.value.trim();
+            if (!text) return;
+
+            try {
+                const res = await fetch("/api/notes/add", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ user_id: currentUserId, content: text, category: "备忘" })
+                });
+                if (res.ok) {
+                    input.value = "";
+                    loadNotes();
+                }
+            } catch (e) {
+                alert("添加失败: " + e.message);
+            }
+        }
+
+        async function deleteNote(noteId) {
+            try {
+                const res = await fetch(`/api/notes/delete?user_id=${encodeURIComponent(currentUserId)}&note_id=${noteId}`, { method: "POST" });
+                if (res.ok) {
+                    loadNotes();
+                }
+            } catch (e) {
+                alert("删除失败: " + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
