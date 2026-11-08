@@ -1,0 +1,16 @@
+{
+    "CORP_ID": "wwffd531dbf792dd1d",
+    "AGENT_ID": 1000002,
+    "SECRET": "4KTaqBPlp9Ng_H4QiBiuM-OEuVrHwu6Ne9A0dh1jhUE",
+    "TOKEN": "R8sO2RgY8kjrKD",
+    "ENCODING_AES_KEY": "pU5e1FO8PkLrkb2tKJfipctzDXLGPcyoisPUj6xgXX2",
+
+    "KF_SECRET": "",
+    "OPEN_KFID": "",
+
+    "GEMINI_API_KEY": "AQ.Ab8RN6IHfo-95qMcYrGJU6f6K3B9MVPQMzj0PrMhTrbIIuVKog",
+    "GEMINI_MODEL": "gemini-3-flash-preview",
+    "PROXY": "http://127.0.0.1:7897",
+    "TAVILY_API_KEY": "",
+    "PORT": 8000
+}

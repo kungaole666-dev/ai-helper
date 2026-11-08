@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+cloudflared.exe
+cpolar.exe
+data.db
+.vscode/
