@@ -10,7 +10,7 @@
 
     "GEMINI_API_KEY": "AQ.Ab8RN6IHfo-95qMcYrGJU6f6K3B9MVPQMzj0PrMhTrbIIuVKog",
     "GEMINI_MODEL": "gemini-3-flash-preview",
-    "PROXY": "http://127.0.0.1:7897",
+    "PROXY": "",
     "TAVILY_API_KEY": "",
     "PORT": 8000
 }
