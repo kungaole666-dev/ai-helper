@@ -43,7 +43,7 @@ def handle_quick_notes(user_id: str, text: str) -> str:
 
 def call_gemini(user_id: str, prompt: str) -> str:
     """调用 Google Gemini 官方 API"""
-   api_key = os.environ.get("GEMINI_API_KEY", "").strip() or cfg.get("GEMINI_API_KEY", "").strip()
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip() or cfg.get("GEMINI_API_KEY", "").strip()
     model = cfg.get("GEMINI_MODEL", "gemini-3-flash-preview")
     # 如果是云端运行 (有 PORT 环境变量且 PROXY 为本地 127.0.0.1)，不使用本地代理直接直连
     if os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("ZEABUR"):
