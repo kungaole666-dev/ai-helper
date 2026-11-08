@@ -22,7 +22,18 @@
         pre code { display: block; padding: 0.5rem; background: #2d3748; color: #f7fafc; border-radius: 0.375rem; overflow-x: auto; font-size: 0.875rem; }
     </style>
 </head>
-<body class="bg-gray-100 h-screen flex flex-col justify-between overflow-hidden">
+<body class="bg-gray-100 h-screen flex flex-col justify-between overflow-hidden relative" id="drop-zone">
+
+    <!-- 全屏拖拽文件/图片高亮遮罩层 -->
+    <div id="drag-overlay" class="fixed inset-0 bg-emerald-600/15 backdrop-blur-[2px] border-4 border-dashed border-emerald-500 z-50 hidden flex-col items-center justify-center pointer-events-none transition-all">
+        <div class="bg-white p-6 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center border border-emerald-200">
+            <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl mb-3 shadow-inner">
+                <i class="fa-solid fa-cloud-arrow-up animate-bounce"></i>
+            </div>
+            <h3 class="text-gray-800 font-bold text-base mb-1">松开鼠标即可上传</h3>
+            <p class="text-xs text-gray-500">支持拖入 题目图片 (PNG/JPG)、PDF 文档、代码文件或文本笔记</p>
+        </div>
+    </div>
 
     <!-- 顶部导航栏 -->
     <header class="bg-white border-b border-gray-200 px-3.5 py-2.5 flex items-center justify-between shadow-sm z-10">
@@ -34,7 +45,7 @@
                 <h1 class="font-bold text-gray-800 text-sm sm:text-base leading-tight">AI 智能解题助手</h1>
                 <p class="text-[11px] text-gray-400 flex items-center">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block mr-1"></span>
-                    多模态识图 · 对话记忆
+                    全工作区拖拽 · 图片/文档解析
                 </p>
             </div>
         </div>
@@ -42,7 +53,7 @@
         <div class="flex items-center space-x-1.5">
             <!-- 官方免费模型选择器 -->
             <select id="model-select" onchange="onModelChange()" class="text-xs bg-gray-50 border border-gray-200 text-gray-700 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium cursor-pointer">
-                <option value="gemini-3.8-flash" selected>🔥 Gemini 3.8 Flash (解题首选 · 免费)</option>
+                <option value="gemini-3.8-flash" selected>🔥 Gemini 3.8 Flash (最新主力 · 免费)</option>
                 <option value="gemini-3.5-flash-lite">⚡ Gemini 3.5 Flash Lite (极速 · 免费)</option>
                 <option value="gemini-3.1-pro-preview">🧠 Gemini 3.1 Pro (深度推理 · 免费)</option>
                 <option value="gemini-3.1-flash-lite">🚀 Gemini 3.1 Flash Lite (稳定 · 免费)</option>
@@ -66,13 +77,13 @@
         <!-- 欢迎卡片 -->
         <div id="welcome-card" class="flex justify-start">
             <div class="max-w-[88%] bg-white p-3.5 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100 text-gray-800 text-sm leading-relaxed">
-                <p class="font-semibold text-emerald-600 mb-1">👋 你好！我是你的专属 AI 解题与记事助理</p>
-                <p class="text-gray-600 mb-2">已开启<strong>持久化对话记忆</strong>与<strong>拍照识图解题</strong>，你可以：</p>
+                <p class="font-semibold text-emerald-600 mb-1">👋 你好！我是你的专属 AI 解题与文档助手</p>
+                <p class="text-gray-600 mb-2">已全面支持<strong>直接拖拽上传</strong>与<strong>长文档分析</strong>，你可以：</p>
                 <ul class="text-xs text-gray-500 space-y-1.5 list-disc list-inside">
-                    <li><strong class="text-gray-700">📷 上传题目图片</strong>：点击左下角相机图标或截图直接粘贴（Ctrl+V），拍照解题！</li>
-                    <li><strong class="text-gray-700">📐 输入公式/文字</strong>：直接发数学、物理题，自动输出分步演算与公式</li>
-                    <li><strong class="text-gray-700">📝 智能记事本</strong>：发送“记一下：明天开会”自动归档</li>
-                    <li><strong class="text-gray-700">🧠 连续对话</strong>：刷新页面后对话不丢失，记得上下文！</li>
+                    <li><strong class="text-gray-700">📂 全屏拖拽</strong>：直接把<strong>图片、PDF、TXT、代码文件</strong>拖进聊天框即可分析！</li>
+                    <li><strong class="text-gray-700">📷 拍照识图</strong>：手机端点相机拍照，电脑端直接截图粘贴（Ctrl+V）</li>
+                    <li><strong class="text-gray-700">📐 公式分步演算</strong>：数学、物理、高数题自动排版 LaTeX 公式</li>
+                    <li><strong class="text-gray-700">📝 智能备忘录</strong>：发送“记一下：xxx”实时存入数据库</li>
                 </ul>
             </div>
         </div>
@@ -80,14 +91,19 @@
 
     <!-- 底部输入区域 -->
     <footer class="bg-white border-t border-gray-200 p-3 z-10">
-        <!-- 待发送图片缩略预览卡片 -->
-        <div id="image-preview-container" class="hidden items-center mb-2 p-1.5 bg-gray-50 border border-gray-200 rounded-xl w-fit">
-            <img id="image-preview" src="" class="w-14 h-14 object-cover rounded-lg border border-gray-200 mr-2" alt="预览">
-            <div class="text-xs text-gray-500 mr-2">
-                <p class="font-medium text-gray-700">已附加题目图片</p>
-                <p class="text-[10px] text-gray-400">点击右侧叉号撤销</p>
+        <!-- 待发送附件预览卡片 (图片或文件) -->
+        <div id="attachment-preview-container" class="hidden items-center mb-2 p-1.5 bg-gray-50 border border-gray-200 rounded-xl w-fit max-w-full">
+            <div id="preview-image-box" class="hidden mr-2">
+                <img id="image-preview" src="" class="w-12 h-12 object-cover rounded-lg border border-gray-200" alt="预览">
             </div>
-            <button onclick="removeSelectedImage()" class="text-gray-400 hover:text-red-500 p-1 text-base">
+            <div id="preview-file-box" class="hidden mr-2 w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-file-lines"></i>
+            </div>
+            <div class="text-xs text-gray-600 mr-3 truncate max-w-[180px]">
+                <p id="attachment-name" class="font-medium text-gray-800 truncate">已附加文件</p>
+                <p id="attachment-info" class="text-[10px] text-gray-400">点击右侧叉号撤销</p>
+            </div>
+            <button onclick="clearAttachment()" class="text-gray-400 hover:text-red-500 p-1 text-base ml-auto" title="撤销附件">
                 <i class="fa-solid fa-circle-xmark"></i>
             </button>
         </div>
@@ -106,29 +122,36 @@
         </div>
 
         <!-- 输入控件栏 -->
-        <div class="flex items-end space-x-2">
-            <!-- 隐藏的图片选择 input (支持相册与相机) -->
-            <input type="file" id="image-file-input" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
-            
-            <!-- 上传图片按钮 -->
-            <button onclick="document.getElementById('image-file-input').click()" class="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 active:scale-95 transition flex items-center justify-center shadow-sm" title="上传题目图片 / 拍照">
-                <i class="fa-solid fa-camera text-base"></i>
+        <div class="flex items-end space-x-1.5">
+            <!-- 隐藏的图片选择 input -->
+            <input type="file" id="image-file-input" accept="image/*" class="hidden" onchange="handleImageInput(event)">
+            <!-- 隐藏的文档选择 input -->
+            <input type="file" id="doc-file-input" accept=".pdf,.txt,.md,.py,.js,.html,.css,.json,.csv,.c,.cpp,.java,.doc,.docx" class="hidden" onchange="handleDocInput(event)">
+
+            <!-- 拍照/图片按钮 -->
+            <button onclick="document.getElementById('image-file-input').click()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 active:scale-95 transition flex items-center justify-center shadow-sm" title="上传题目图片 / 手机拍照">
+                <i class="fa-solid fa-camera text-sm sm:text-base"></i>
+            </button>
+
+            <!-- 上传文档按钮 -->
+            <button onclick="document.getElementById('doc-file-input').click()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 active:scale-95 transition flex items-center justify-center shadow-sm" title="上传文档 (PDF/TXT/代码/表格)">
+                <i class="fa-solid fa-paperclip text-sm sm:text-base"></i>
             </button>
 
             <!-- 文本输入框 -->
-            <textarea id="user-input" rows="1" placeholder="发消息、问数学题、或直接粘贴(Ctrl+V)截图..." 
+            <textarea id="user-input" rows="1" placeholder="发消息、问题目，或把文件/截图直接拖进网页..." 
                 class="flex-1 max-h-32 p-2.5 text-sm bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white resize-none"
                 onkeydown="handleKey(event)"></textarea>
             
             <!-- 发送按钮 -->
-            <button id="send-btn" onclick="sendMessage()" class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 active:scale-95 transition shadow-sm">
-                <i class="fa-solid fa-arrow-up"></i>
+            <button id="send-btn" onclick="sendMessage()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 active:scale-95 transition shadow-sm">
+                <i class="fa-solid fa-arrow-up text-sm sm:text-base"></i>
             </button>
         </div>
 
         <div class="text-[10px] text-gray-400 text-center mt-1.5 flex justify-between px-1">
             <span>用户专属ID: <strong id="user-tag" class="text-gray-500">加载中</strong></span>
-            <span>按 Enter 发送 · 支持截图粘贴</span>
+            <span>直接拖入文件 · 按 Enter 发送</span>
         </div>
     </footer>
 
@@ -156,7 +179,7 @@
     </div>
 
     <script>
-        // 初始化多用户 ID
+        // 初始化用户唯一 ID
         let userId = localStorage.getItem("wechat_agent_user_id");
         if (!userId) {
             userId = "user_" + Math.random().toString(36).substring(2, 10);
@@ -177,14 +200,51 @@
         const userInput = document.getElementById("user-input");
         const sendBtn = document.getElementById("send-btn");
 
-        // 待发送图片数据
-        let currentImageData = null; // { mime_type: "...", data: "base64..." }
+        // 当前暂存的附件状态
+        let currentImageData = null; // { mime_type, data, previewUrl }
+        let currentFileData = null;  // { name, mime_type, data (PDF base64), text_content (文本纯文本) }
 
-        // 页面打开时自动加载历史聊天记录
         window.addEventListener("DOMContentLoaded", loadChatHistory);
 
-        // 监听全局 Ctrl+V 粘贴图片
-        window.addEventListener("paste", function(e) {
+        // ------------------ 全屏拖拽 (Drag & Drop) 支持 ------------------
+        const dragOverlay = document.getElementById("drag-overlay");
+        let dragCounter = 0;
+
+        window.addEventListener("dragenter", (e) => {
+            e.preventDefault();
+            dragCounter++;
+            dragOverlay.classList.remove("hidden");
+            dragOverlay.classList.add("flex");
+        });
+
+        window.addEventListener("dragover", (e) => {
+            e.preventDefault();
+        });
+
+        window.addEventListener("dragleave", (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter <= 0) {
+                dragCounter = 0;
+                dragOverlay.classList.add("hidden");
+                dragOverlay.classList.remove("flex");
+            }
+        });
+
+        window.addEventListener("drop", (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            dragOverlay.classList.add("hidden");
+            dragOverlay.classList.remove("flex");
+
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                routeUploadedFile(file);
+            }
+        });
+
+        // 全局 Ctrl + V 粘贴图片与文字
+        window.addEventListener("paste", (e) => {
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (let item of items) {
                 if (item.type.indexOf("image") !== -1) {
@@ -195,31 +255,31 @@
             }
         });
 
-        function handleKey(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        }
-
-        function quickFill(text) {
-            userInput.value = text;
-            sendMessage();
-        }
-
-        function handleImageSelect(event) {
-            const file = event.target.files[0];
-            if (file) {
+        function routeUploadedFile(file) {
+            if (file.type.startsWith("image/")) {
                 processImageFile(file);
+            } else {
+                processDocFile(file);
             }
         }
 
+        function handleImageInput(e) {
+            const file = e.target.files[0];
+            if (file) processImageFile(file);
+        }
+
+        function handleDocInput(e) {
+            const file = e.target.files[0];
+            if (file) processDocFile(file);
+        }
+
+        // 处理图片 (压缩为合适尺寸的 Base64)
         function processImageFile(file) {
+            clearAttachment();
             const reader = new FileReader();
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
-                    // 客户端自动压缩，最大限制 1200px 保证上传秒级极速
                     const canvas = document.createElement("canvas");
                     let width = img.width;
                     let height = img.height;
@@ -247,38 +307,127 @@
                         previewUrl: compressedBase64
                     };
 
-                    // 显示预览卡片
-                    document.getElementById("image-preview").src = compressedBase64;
-                    document.getElementById("image-preview-container").classList.remove("hidden");
-                    document.getElementById("image-preview-container").classList.add("flex");
+                    showPreview({
+                        isImage: true,
+                        previewUrl: compressedBase64,
+                        name: file.name || "题目图片.jpg",
+                        info: `${Math.round(file.size / 1024)} KB · 已准备就绪`
+                    });
                 };
                 img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
 
-        function removeSelectedImage() {
+        // 处理各类文档 (PDF 原生转 Base64，文本文件读取全文)
+        function processDocFile(file) {
+            clearAttachment();
+            const name = file.name;
+            const isPdf = file.type === "application/pdf" || name.toLowerCase().endsWith(".pdf");
+
+            if (isPdf) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64 = e.target.result.split(",")[1];
+                    currentFileData = {
+                        name: name,
+                        mime_type: "application/pdf",
+                        data: base64
+                    };
+                    showPreview({
+                        isImage: false,
+                        icon: "fa-file-pdf text-red-500",
+                        name: name,
+                        info: `PDF 文档 · ${Math.round(file.size / 1024)} KB`
+                    });
+                };
+                reader.readAsDataURL(file);
+            } else {
+                // 纯文本、代码、表格文件
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const textContent = e.target.result;
+                    currentFileData = {
+                        name: name,
+                        mime_type: file.type || "text/plain",
+                        text_content: textContent
+                    };
+                    showPreview({
+                        isImage: false,
+                        icon: "fa-file-lines text-emerald-600",
+                        name: name,
+                        info: `文本/代码 · 约 ${textContent.length} 字`
+                    });
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function showPreview({ isImage, previewUrl, icon, name, info }) {
+            const container = document.getElementById("attachment-preview-container");
+            const imgBox = document.getElementById("preview-image-box");
+            const fileBox = document.getElementById("preview-file-box");
+
+            if (isImage) {
+                imgBox.classList.remove("hidden");
+                fileBox.classList.add("hidden");
+                document.getElementById("image-preview").src = previewUrl;
+            } else {
+                imgBox.classList.add("hidden");
+                fileBox.classList.remove("hidden");
+                fileBox.innerHTML = `<i class="fa-solid ${icon || 'fa-file-lines'}"></i>`;
+            }
+
+            document.getElementById("attachment-name").innerText = name;
+            document.getElementById("attachment-info").innerText = info;
+
+            container.classList.remove("hidden");
+            container.classList.add("flex");
+        }
+
+        function clearAttachment() {
             currentImageData = null;
+            currentFileData = null;
             document.getElementById("image-file-input").value = "";
-            document.getElementById("image-preview-container").classList.add("hidden");
-            document.getElementById("image-preview-container").classList.remove("flex");
+            document.getElementById("doc-file-input").value = "";
+            const container = document.getElementById("attachment-preview-container");
+            container.classList.add("hidden");
+            container.classList.remove("flex");
+        }
+
+        function handleKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function quickFill(text) {
+            userInput.value = text;
+            sendMessage();
         }
 
         async function sendMessage() {
             const text = userInput.value.trim();
             const hasImage = currentImageData !== null;
-            if (!text && !hasImage) return;
+            const hasFile = currentFileData !== null;
 
-            // 1. 渲染用户气泡 (附带缩略图预览)
-            appendMessage("user", text || "请解这道题目", hasImage ? currentImageData.previewUrl : null);
+            if (!text && !hasImage && !hasFile) return;
+
+            // 渲染用户气泡
+            appendMessage("user", text || (hasImage ? "请分析解这道题目" : "请分析这份文件内容"), {
+                imageUrl: hasImage ? currentImageData.previewUrl : null,
+                fileName: hasFile ? currentFileData.name : null
+            });
             
             userInput.value = "";
             userInput.style.height = 'auto';
 
             const payloadImage = hasImage ? { mime_type: currentImageData.mime_type, data: currentImageData.data } : null;
-            removeSelectedImage(); // 清空输入区已选图片
+            const payloadFile = hasFile ? currentFileData : null;
+            clearAttachment();
 
-            // 2. 渲染正在思考占位符
+            // 渲染思考占位符
             const loadingId = appendLoading();
             sendBtn.disabled = true;
 
@@ -291,7 +440,8 @@
                         user_id: userId, 
                         message: text, 
                         model: selectedModel,
-                        image: payloadImage
+                        image: payloadImage,
+                        file: payloadFile
                     })
                 });
                 const data = await resp.json();
@@ -311,19 +461,29 @@
             }
         }
 
-        function appendMessage(role, text, imagePreviewUrl = null) {
+        function appendMessage(role, text, attachment = {}) {
             const msgDiv = document.createElement("div");
             msgDiv.className = role === "user" ? "flex justify-end" : "flex justify-start";
 
             const bubble = document.createElement("div");
             if (role === "user") {
                 bubble.className = "max-w-[85%] bg-emerald-600 text-white p-3 rounded-2xl rounded-tr-sm text-sm shadow-sm whitespace-pre-wrap leading-relaxed";
-                if (imagePreviewUrl) {
+                
+                // 渲染图片缩略图
+                if (attachment.imageUrl) {
                     const imgEl = document.createElement("img");
-                    imgEl.src = imagePreviewUrl;
-                    imgEl.className = "max-w-xs max-h-48 rounded-lg mb-2 object-cover border border-emerald-500";
+                    imgEl.src = attachment.imageUrl;
+                    imgEl.className = "max-w-xs max-h-48 rounded-lg mb-2 object-cover border border-emerald-500 shadow-sm";
                     bubble.appendChild(imgEl);
                 }
+                // 渲染文件标签
+                if (attachment.fileName) {
+                    const fileBadge = document.createElement("div");
+                    fileBadge.className = "inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-emerald-700/60 text-xs mb-1.5 border border-emerald-500/40";
+                    fileBadge.innerHTML = `<i class="fa-solid fa-paperclip text-[10px]"></i><span class="font-medium truncate max-w-[200px]">${attachment.fileName}</span>`;
+                    bubble.appendChild(fileBadge);
+                }
+
                 const textSpan = document.createElement("div");
                 textSpan.innerText = text;
                 bubble.appendChild(textSpan);
@@ -357,7 +517,7 @@
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce"></span>
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style="animation-delay: 0.2s"></span>
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style="animation-delay: 0.4s"></span>
-                    <span class="ml-1 text-gray-500">Gemini 正在识图推导思考...</span>
+                    <span class="ml-1 text-gray-500">Gemini 正在深入分析演算...</span>
                 </div>
             `;
             chatContainer.appendChild(div);
@@ -365,7 +525,7 @@
             return id;
         }
 
-        // 加载历史对话记忆
+        // 加载历史会话
         async function loadChatHistory() {
             try {
                 const res = await fetch(`/api/history?user_id=${userId}`);
@@ -380,16 +540,15 @@
             }
         }
 
-        // 清空历史对话记忆 (新建对话)
+        // 清空历史会话
         async function confirmClearHistory() {
             if (confirm("确定要清空历史对话记忆吗？这将开启一个全新的对话。")) {
                 await fetch(`/api/clear_history?user_id=${userId}`, { method: "POST" });
-                // 清空界面消息保留欢迎卡片
                 chatContainer.innerHTML = `
                     <div id="welcome-card" class="flex justify-start">
                         <div class="max-w-[88%] bg-white p-3.5 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100 text-gray-800 text-sm leading-relaxed">
                             <p class="font-semibold text-emerald-600 mb-1">✨ 已开启全新对话！</p>
-                            <p class="text-xs text-gray-500">历史记忆已重置，你可以随时发送文字或上传新题目图片。</p>
+                            <p class="text-xs text-gray-500">历史记忆已重置，支持直接拖入文件或图片开启新的解题。</p>
                         </div>
                     </div>
                 `;

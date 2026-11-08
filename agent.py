@@ -41,8 +41,8 @@ def handle_quick_notes(user_id: str, text: str) -> str:
 
     return None
 
-def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: Dict[str, str] = None) -> str:
-    """调用 Google Gemini 官方 API (支持多模态识图解题、动态切换模型与 503 自动容灾降级)"""
+def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: Dict[str, str] = None, file_data: Dict[str, Any] = None) -> str:
+    """调用 Google Gemini 官方 API (支持图片识图、PDF原生解析、文档分析、动态模型与 503 自动容灾)"""
     api_key = os.environ.get("GEMINI_API_KEY", "").strip() or cfg.get("GEMINI_API_KEY", "").strip()
     
     # 优先使用前端传入的模型，其次环境变量，最后默认使用官方最强免费模型 gemini-3.8-flash
@@ -73,13 +73,20 @@ def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: D
             "parts": [{"text": h["content"]}]
         })
 
-    # 组装当前用户问题与多模态图片
+    # 组装当前用户问题、多模态图片及文档附件
     user_parts = []
-    text_prompt = prompt.strip() if prompt else ("请详细分析并解答这道题目，给出清晰推导步骤。" if image_data else "")
+    default_hint = "请详细分析并解答用户提供的题目或文件内容，给出清晰严谨的推导与解答。"
+    text_prompt = prompt.strip() if prompt else ((default_hint if (image_data or file_data) else ""))
+
+    # 如果有上传文本类文件内容 (txt, md, py, csv, json 等)
+    if file_data and file_data.get("text_content"):
+        fname = file_data.get("name", "文档")
+        text_prompt = f"【用户上传的附件文档: {fname}】\n\n```\n{file_data['text_content']}\n```\n\n用户问题/需求: {text_prompt or '请全面总结、分析并解答该文件中的关键内容'}"
+
     if text_prompt:
         user_parts.append({"text": text_prompt})
 
-    # 如果有上传图片，添加 inlineData 结构
+    # 如果有上传图片，添加图片 inlineData
     if image_data and image_data.get("data"):
         user_parts.append({
             "inlineData": {
@@ -88,8 +95,17 @@ def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: D
             }
         })
 
+    # 如果有上传 PDF 文档，利用 Gemini 官方原生的 PDF 视觉深度解析能力
+    if file_data and file_data.get("mime_type") == "application/pdf" and file_data.get("data"):
+        user_parts.append({
+            "inlineData": {
+                "mimeType": "application/pdf",
+                "data": file_data.get("data")
+            }
+        })
+
     if not user_parts:
-        return "请发送题目文字或上传图片。"
+        return "请发送题目文字、上传图片或拖入文档。"
 
     contents.append({
         "role": "user",
@@ -111,16 +127,19 @@ def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: D
     for current_model in candidate_models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={api_key}"
         try:
-            with httpx.Client(proxy=proxy, timeout=40.0) as client:
+            with httpx.Client(proxy=proxy, timeout=45.0) as client:
                 resp = client.post(url, json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
                     answer = data["candidates"][0]["content"]["parts"][0]["text"]
                     
-                    # 记录持久化聊天历史 (带图标识)
-                    saved_user_text = text_prompt
+                    # 记录持久化聊天历史
+                    saved_user_text = prompt.strip() or "解题/文档分析"
                     if image_data:
-                        saved_user_text = "[📷 图片] " + (text_prompt or "解题图片")
+                        saved_user_text = "[📷 图片] " + saved_user_text
+                    elif file_data:
+                        saved_user_text = f"[📎 文件: {file_data.get('name')}] " + saved_user_text
+
                     db.save_chat_message(user_id, "user", saved_user_text)
                     db.save_chat_message(user_id, "assistant", answer)
                     return answer
@@ -137,20 +156,19 @@ def call_gemini(user_id: str, prompt: str, model_name: str = None, image_data: D
 
     return f"模型当前处于全球请求高峰期，请稍等 10 秒后再试 (错误: {last_err})"
 
-def run_agent(user_id: str, user_message: str, model_name: str = None, image_data: Dict[str, str] = None) -> str:
+def run_agent(user_id: str, user_message: str, model_name: str = None, image_data: Dict[str, str] = None, file_data: Dict[str, Any] = None) -> str:
     """主入口函数"""
-    # 如果仅包含文本且没有图片，优先检查是否是记事本快速指令
-    if not image_data:
+    # 仅在无图片和文件时触发记事或搜索快速指令
+    if not image_data and not file_data:
         note_resp = handle_quick_notes(user_id, user_message)
         if note_resp:
             return note_resp
 
-        # 检查是否显式要求联网搜索
         if user_message.startswith("搜索") or user_message.startswith("搜一下") or user_message.startswith("查一下"):
             query = user_message.lstrip("搜索：: 查一下搜一下")
             search_res = search.search_web(query)
             prompt_with_search = f"用户想要了解「{query}」，以下是网页检索到的参考资料：\n{search_res}\n\n请结合以上资料给出全面清晰的总结。"
             return call_gemini(user_id, prompt_with_search, model_name=model_name)
 
-    # 正常交付 Gemini 进行多模态识图解题与连贯问答
-    return call_gemini(user_id, user_message, model_name=model_name, image_data=image_data)
+    # 交付 Gemini 进行多模态图文与文件深度推理
+    return call_gemini(user_id, user_message, model_name=model_name, image_data=image_data, file_data=file_data)

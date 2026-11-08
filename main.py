@@ -36,6 +36,7 @@ class ChatRequest(BaseModel):
     message: str
     model: Optional[str] = None
     image: Optional[Dict[str, str]] = None
+    file: Optional[Dict[str, Any]] = None
 
 @app.post("/api/chat")
 async def api_chat(req: ChatRequest):
@@ -44,12 +45,13 @@ async def api_chat(req: ChatRequest):
         message = req.message.strip()
         model_name = req.model.strip() if req.model else None
         image_data = req.image if (req.image and req.image.get("data")) else None
+        file_data = req.file if (req.file and (req.file.get("data") or req.file.get("text_content"))) else None
 
-        if not message and not image_data:
-            return {"reply": "请输入您的问题或上传题目图片。"}
+        if not message and not image_data and not file_data:
+            return {"reply": "请输入您的问题、上传图片或拖入文件。"}
 
-        print(f"💬 [Web 访客 {user_id} 模型 {model_name} 图片:{bool(image_data)}]: {message[:30]}")
-        reply = run_agent(user_id=user_id, user_message=message, model_name=model_name, image_data=image_data)
+        print(f"💬 [Web 访客 {user_id} 模型 {model_name} 图:{bool(image_data)} 文档:{bool(file_data)}]: {message[:30]}")
+        reply = run_agent(user_id=user_id, user_message=message, model_name=model_name, image_data=image_data, file_data=file_data)
         return {"reply": reply}
     except Exception as e:
         print(f"❌ api_chat 处理异常: {e}")
