@@ -98,10 +98,10 @@ def auth_or_register_user(username: str, password: str) -> Tuple[bool, str, Opti
     """智能认证：若账户不存在则自动安全注册；若已存在则严格验证密码登录 (彻底解决云端重启导致的注册/登录冲突)"""
     username = username.strip()
     password = password.strip()
-    if not username or len(username) < 2:
-        return False, "账户名称至少需 2 个字符", None, None
-    if not password or len(password) < 4:
-        return False, "密码长度至少需 4 个字符", None, None
+    if not username:
+        return False, "请输入账户名称", None, None
+    if not password:
+        return False, "请输入账户密码", None, None
 
     conn = get_db_conn()
     cursor = conn.cursor()

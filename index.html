@@ -418,7 +418,7 @@
     </div>
 
     <!-- 账户登录 / 注册模态弹窗 (强制密码保护) -->
-    <div id="auth-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div id="auth-modal" style="display: none;" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
         <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm p-6 space-y-5">
             <div class="text-center space-y-1">
                 <div class="w-10 h-10 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center font-bold text-sm mx-auto shadow-sm">
@@ -553,6 +553,7 @@
         let currentAbortController = null;
         let userScrolledUp = false;
         let authRetryCount = 0;
+        let authRetryTimer = null;
 
         // 初始化
         window.addEventListener("DOMContentLoaded", () => {
@@ -642,7 +643,7 @@
                         // Render 容器可能正在从休眠中唤醒 (冷启动需 15~30s)，严禁清除 Token！
                         authRetryCount++;
                         showWakeupNotice("云端服务正在唤醒中，已保留登录状态...");
-                        setTimeout(checkAuthStatus, 2500);
+                        authRetryTimer = setTimeout(checkAuthStatus, 2500);
                         return;
                     }
                 }
@@ -651,7 +652,7 @@
                 if (authRetryCount < 8) {
                     authRetryCount++;
                     showWakeupNotice("正在连接云端服务 (唤醒中)...");
-                    setTimeout(checkAuthStatus, 2500);
+                    authRetryTimer = setTimeout(checkAuthStatus, 2500);
                     return;
                 }
             }
@@ -718,12 +719,29 @@
         }
 
         function showAuthModal() {
-            document.getElementById("auth-modal").classList.remove("hidden");
-            document.getElementById("auth-username").focus();
+            // 如果已在会话登录中，绝不重复弹窗打扰！
+            if (authToken && currentUserId) return;
+            const modal = document.getElementById("auth-modal");
+            if (modal) {
+                modal.style.display = "flex";
+                modal.classList.remove("hidden");
+                modal.classList.add("flex");
+            }
+            const u = document.getElementById("auth-username");
+            if (u) u.focus();
         }
 
         function hideAuthModal() {
-            document.getElementById("auth-modal").classList.add("hidden");
+            if (authRetryTimer) {
+                clearTimeout(authRetryTimer);
+                authRetryTimer = null;
+            }
+            const modal = document.getElementById("auth-modal");
+            if (modal) {
+                modal.style.display = "none";
+                modal.classList.add("hidden");
+                modal.classList.remove("flex");
+            }
         }
 
         function switchAuthTab(mode) {
